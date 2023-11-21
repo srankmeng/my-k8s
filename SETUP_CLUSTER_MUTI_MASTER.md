@@ -560,3 +560,7 @@ Assign role (optional)
 ```
 kubectl label nodes w1 node-role.kubernetes.io/worker=worker
 ```
+
+Reference
+* [Reference](https://tansanrao.com/kubernetes-ha-cluster-with-kubeadm/)
+
