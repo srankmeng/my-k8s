@@ -1,4 +1,4 @@
-## Step การติดตั้ง Kubernetes cluster
+## Step การติดตั้ง Kubernetes cluster (1 Master node, 2 Worker nodes)
 * ติดตั้ง Docker และ Kubernetes ในทุก ๆ  node ทั้ง Master และ Worker node
 * สร้าง Master node และ Cluster
 * สร้าง Worker node และทำการ join เข้า Cluster
@@ -194,14 +194,14 @@ w2       Ready    <none>          3s      v1.28.2
 เป็นอันเรียบร้อยสำหรับการสร้าง cluster
 
 ## ลองรัน Nginx
-สร้างไฟล์ nginx.yml
+สร้างไฟล์ nginx.yaml
 ```
-touch nginx.yml
+touch nginx.yaml
 ```
 
 แก้ไขไฟล์ 
 ```
-nano nginx.yml
+nano nginx.yaml
 ```
 
 ตามนี้
@@ -240,12 +240,12 @@ spec:
 
 apply
 ```
-kubectl apply -f nginx.yml
+kubectl apply -f nginx.yaml
 ```
 
 delete
 ```
-kubectl apply -f nginx.yml
+kubectl delete -f nginx.yaml
 ```
 
 เข้าไปดูว่าขึ้น nginx มั้ย
