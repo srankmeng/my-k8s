@@ -1,8 +1,5 @@
 #!/bin/bash
 
-sudo rm /etc/containerd/config.toml
-sudo systemctl restart containerd
-
 # Initialize Kubernetes on Master Node
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint $1:6443
 

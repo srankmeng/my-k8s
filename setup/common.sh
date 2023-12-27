@@ -30,3 +30,6 @@ sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 # Install Kubeadm
 sudo apt update   
 sudo apt install -y kubeadm
+
+sudo rm /etc/containerd/config.toml
+sudo systemctl restart containerd
