@@ -564,3 +564,32 @@ kubectl label nodes w1 node-role.kubernetes.io/worker=worker
 Reference
 * [Reference](https://tansanrao.com/kubernetes-ha-cluster-with-kubeadm/)
 
+## Setup Kubernetes Metrics Server
+
+To verify this, if you run the top command, you will see the Metrics API not available error.
+
+```
+kubectl top nodes
+```
+`error: Metrics API not available`
+
+To install the metrics server, execute the following metric server manifest file. It deploys metrics server version v0.6.2
+
+```
+kubectl apply -f https://raw.githubusercontent.com/techiescamp/kubeadm-scripts/main/manifests/metrics-server.yaml
+```
+
+Once the metrics server objects are deployed, it takes a minute for you to see the node and pod metrics using the top command.
+
+```
+kubectl top nodes
+```
+
+```
+NAME      CPU(cores)   CPU%   MEMORY(bytes)   MEMORY%   
+master    332m         16%    1144Mi          61%       
+master2   339m         16%    1232Mi          65%       
+master3   331m         16%    1202Mi          64%       
+w1        140m         7%     758Mi           40%       
+w2        154m         7%     763Mi           40% 
+```

@@ -110,6 +110,11 @@ Initialize Kubernetes on Master Node (master node only)
 ```
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 ```
+
+OR
+```
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {PUBLIC_IP}:6443
+```
 หมายเหตุ –pod-network-cidr=10.244.0.0/16 เป็นการระบุหมายเลข Private Subnet ของ Pod ซึ่งค่า 10.224.0.0/16 เป็นค่า default ของ Flannel
 
 ถ้าเจอ error ประมานนี้
@@ -211,11 +216,14 @@ kind: Service
 metadata:
   name: nginx-project
 spec:
-  type: LoadBalancer
-  ports:
-    - port: 80
+  type: NodePort
   selector:
     app: nginx-project
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      nodePort: 30181
 ---
 apiVersion: apps/v1
 kind: Deployment

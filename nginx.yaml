@@ -3,11 +3,15 @@ kind: Service
 metadata:
   name: nginx-project
 spec:
-  type: LoadBalancer
-  ports:
-    - port: 80
+  # type: LoadBalancer
+  type: NodePort
   selector:
     app: nginx-project
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+      # nodePort: 30181
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -28,3 +32,23 @@ spec:
           image: nginx:1.17.3
           ports:
             - containerPort: 80
+---
+# apiVersion: networking.k8s.io/v1beta1 # for k3s < v1.19
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx
+  annotations:
+    ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /test(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: nginx-project
+            port:
+              number: 80
