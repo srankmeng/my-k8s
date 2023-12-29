@@ -1,0 +1,270 @@
+## Step การติดตั้ง Kubernetes cluster (2 external etcd nodes)
+* [Reference 1](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/setup-ha-etcd-with-kubeadm/)
+* [Reference 2](https://weng-albert.medium.com/building-high-availability-external-etcd-cluster-with-static-pods-step-by-step-en-84e9f3328b09)
+
+## 1. ติดตั้ง Docker บน Ubuntu
+* [Reference](https://docs.docker.com/engine/install/ubuntu/)
+
+รันเพื่อทดสอบว่าใช้ได้ 
+
+```
+$ sudo docker version
+
+Client: Docker Engine - Community
+ Version:           20.10.14
+ API version:       1.41
+ Go version:        go1.16.15
+ Git commit:        a224086
+ Built:             Thu Mar 24 01:48:02 2022
+ OS/Arch:           linux/amd64
+ Context:           default
+ Experimental:      true
+
+Server: Docker Engine - Community
+ Engine:
+  Version:          20.10.14
+  API version:      1.41 (minimum version 1.12)
+  Go version:       go1.16.15
+  Git commit:       87a90dc
+  Built:            Thu Mar 24 01:45:53 2022
+  OS/Arch:          linux/amd64
+  Experimental:     false
+ containerd:
+  Version:          1.5.11
+  GitCommit:        3df54a852345ae127d1fa3092b95168e4a88e2f8
+ runc:
+  Version:          1.0.3
+  GitCommit:        v1.0.3-0-gf46b6ba
+ docker-init:
+  Version:          0.19.0
+  GitCommit:        de40ad0
+```
+
+ถ้าเจอข้อความประมานนี้
+```
+Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+ให้รัน command เพื่อเปิดใช้งาน docker
+```
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+## 2. ติดตั้ง Kubernetes บน Ubuntu
+
+
+ปิดการใช้งาน swap 
+```
+sudo swapoff -a
+```
+
+ปิดการใช้งาน swap ถาวรแม้จะเปิดปิดเครื่องใหม่
+```
+sudo nano /etc/fstab
+```
+
+จากนั้น comment code บรรทัดที่เป็น swap
+```
+#/swap.img  none    swap    sw  0    0 
+```
+
+Enter the following to add a signing key in you on Ubuntu
+```
+sudo apt update
+
+curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
+```
+
+Add Software Repositories: Kubernetes is not included in the default repositories. To add them, enter the following
+```
+sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
+```
+
+Install Kubeadm
+```
+sudo apt update   
+sudo apt install -y kubeadm
+```
+
+Check
+```
+kubeadm --help
+kubectl --help
+kubelet --help
+```
+
+## 3. สร้าง Cluster และ etcd node
+Configure the kubelet (all nodes)
+```
+cat << EOF > /etc/systemd/system/kubelet.service.d/kubelet.conf
+# Replace "systemd" with the cgroup driver of your container runtime. The default value in the kubelet is "cgroupfs".
+# Replace the value of "containerRuntimeEndpoint" for a different container runtime if needed.
+#
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    enabled: false
+authorization:
+  mode: AlwaysAllow
+cgroupDriver: systemd
+address: 127.0.0.1
+containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+staticPodPath: /etc/kubernetes/manifests
+EOF
+
+cat << EOF > /etc/systemd/system/kubelet.service.d/20-etcd-service-manager.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/kubelet --config=/etc/systemd/system/kubelet.service.d/kubelet.conf
+Restart=always
+EOF
+
+systemctl daemon-reload
+systemctl restart kubelet
+```
+
+Create configuration files for kubeadm (all nodes)
+```
+# Update HOST0, HOST1 and HOST2 with the IPs of your hosts
+export HOST0=10.0.0.6
+export HOST1=10.0.0.7
+
+# Update NAME0, NAME1 and NAME2 with the hostnames of your hosts
+export NAME0="etcd1"
+export NAME1="etcd2"
+
+# Create temp directories to store files that will end up on other hosts
+mkdir -p /tmp/${HOST0}/ /tmp/${HOST1}/
+
+HOSTS=(${HOST0} ${HOST1})
+NAMES=(${NAME0} ${NAME1})
+
+for i in "${!HOSTS[@]}"; do
+HOST=${HOSTS[$i]}
+NAME=${NAMES[$i]}
+cat << EOF > /tmp/${HOST}/kubeadmcfg.yaml
+---
+apiVersion: "kubeadm.k8s.io/v1beta3"
+kind: InitConfiguration
+nodeRegistration:
+    name: ${NAME}
+localAPIEndpoint:
+    advertiseAddress: ${HOST}
+---
+apiVersion: "kubeadm.k8s.io/v1beta3"
+kind: ClusterConfiguration
+etcd:
+    local:
+        serverCertSANs:
+        - "${HOST}"
+        peerCertSANs:
+        - "${HOST}"
+        extraArgs:
+            initial-cluster: ${NAMES[0]}=https://${HOSTS[0]}:2380,${NAMES[1]}=https://${HOSTS[1]}:2380
+            initial-cluster-state: new
+            name: ${NAME}
+            listen-peer-urls: https://${HOST}:2380
+            listen-client-urls: https://${HOST}:2379
+            advertise-client-urls: https://${HOST}:2379
+            initial-advertise-peer-urls: https://${HOST}:2380
+EOF
+done
+```
+
+Generate the certificate authority(on etcd 1 only)
+```
+kubeadm init phase certs etcd-ca
+```
+This creates two files:
+- /etc/kubernetes/pki/etcd/ca.crt
+- /etc/kubernetes/pki/etcd/ca.key
+
+Create certificates for each member. (on etcd 1 only)
+```
+kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
+kubeadm init phase certs etcd-peer --config=/tmp/${HOST1}/kubeadmcfg.yaml
+kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+cp -R /etc/kubernetes/pki /tmp/${HOST1}/
+find /etc/kubernetes/pki -not -name ca.crt -not -name ca.key -type f -delete
+
+kubeadm init phase certs etcd-server --config=/tmp/${HOST0}/kubeadmcfg.yaml
+kubeadm init phase certs etcd-peer --config=/tmp/${HOST0}/kubeadmcfg.yaml
+kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+# No need to move the certs because they are for HOST0
+
+# clean up certs that should not be copied off this host
+find /tmp/${HOST1} -name ca.key -type f -delete
+```
+
+Copy certificates and kubeadm configs. (on etcd 1 only)
+```
+$ USER=ubuntu
+$ HOST=${HOST1}
+$ scp -r /tmp/${HOST}/* ${USER}@${HOST}:
+$ ssh ${USER}@${HOST}
+USER@HOST $ sudo -Es
+root@HOST $ chown -R root:root pki
+root@HOST $ mv pki /etc/kubernetes/
+```
+
+if use vagrant
+install [plugin](https://github.com/invernizzi/vagrant-scp)
+
+You have to copy key in host into etcd vm. In this case copy etcd2 key from host into etcd1 because etcd1 need to scp to etcd2.
+```
+vagrant scp .vagrant/machines/etcd2/virtualbox/private_key etcd1:etcd2_key
+```
+
+Copy certificates from etcd1 to etcd2
+```
+$ scp -i etcd2_key -r /tmp/${HOST}/* ${USER}@${HOST}:
+
+$ ssh -i etcd2_key ${USER}@${HOST}
+USER@HOST $ sudo -Es
+root@HOST $ chown -R root:root pki
+root@HOST $ mv pki /etc/kubernetes/
+```
+
+Create the static pod manifests (depend on each nodes)
+```
+$ root@HOST0 $ kubeadm init phase etcd local --config=/tmp/${HOST0}/kubeadmcfg.yaml
+
+$ root@HOST1 $ kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
+```
+
+Install etcdctl for Check the cluster health
+```
+$ ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
+
+$ wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+$ tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+$ cd etcd-${ETCD_RELEASE}-linux-amd64
+$ cp -rp etcdctl /usr/local/bin
+```
+
+Check the cluster health.
+```
+$ ETCDCTL_API=3 etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://${HOST0}:2379 endpoint health
+...
+https://[HOST0 IP]:2379 is healthy: successfully committed proposal: took = 16.283339ms
+https://[HOST1 IP]:2379 is healthy: successfully committed proposal: took = 19.44402ms
+```
+
+View member list.
+```
+$ ETCDCTL_API=3 etcdctl member list \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://192.168.10.25:2379
+```

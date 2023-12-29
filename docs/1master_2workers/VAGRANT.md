@@ -61,7 +61,7 @@ Vagrant.configure("2") do |config|
 end
 ```
 
-จากนั้นรัน `vagrant up` เพื่อสร้าง vms เมื่อเรียบร้อยก็ manual config cluster ต่อได้เลย
+จากนั้นรัน `vagrant up` เพื่อสร้าง vms เมื่อเรียบร้อยก็ config cluster ต่อได้เลย
 
 ### Vagrant cli
 Custom Vagrantfile and start
@@ -75,6 +75,9 @@ Custom Vagrantfile and start
 - show global status `vagrant global-status`
 - show config `vagrant ssh-config` / `vagrant ssh-config {name}`
 
+
+### Setup cluster by manually
+[Steps](/docs/1master_2workers/MANUAL.md)
 
 ### Setup cluster by script
 Update Vagrantfile
