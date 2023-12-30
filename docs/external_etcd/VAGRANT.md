@@ -86,6 +86,7 @@ vagrant plugin install vagrant-scp
 Update Vagrantfile
 ```
 Vagrant.configure("2") do |config|
+  config.vm.provision "shell", path: "setup/gen_ssh.sh", privileged: false
 
   config.vm.define "etcd2" do |etcd2|
     etcd2.vm.box = "ubuntu/bionic64"
@@ -101,11 +102,7 @@ Vagrant.configure("2") do |config|
     etcd1.vm.network "private_network", ip: "192.168.10.24"
     etcd1.vm.provision "shell", path: "setup/common.sh", privileged: false
     etcd1.vm.provision "shell", path: "setup/etcd_common.sh", args: "192.168.10.24 192.168.10.25 etcd1 etcd2", privileged: true
-    etcd1.vm.provision "shell", path: "setup/etcd1.sh", args: "192.168.10.24 192.168.10.25", privileged: true
-    etcd1.trigger.after :up do |trigger|
-      trigger.run = { path: "setup/etcd_scp.sh", args: "etcd1 etcd2" }
-      trigger.run_remote = { path: "setup/etcd_cluster.sh", args: "192.168.10.24 192.168.10.25" }
-    end
+    etcd1.vm.provision "shell", path: "setup/etcd_certs.sh", args: "192.168.10.24 192.168.10.25", privileged: false
   end
 
 end
