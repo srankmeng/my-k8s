@@ -3,6 +3,11 @@
 * ติดตั้ง Docker และ Kubernetes ในทุก ๆ node
 * สร้าง etcd node และ Cluster
 
+| Node    |      ip       |
+|---------|---------------|
+| etcd1   | 192.168.10.24 |
+| etcd2   | 192.168.10.25 |
+
 ## Vagrant
 
 [Document](https://developer.hashicorp.com/vagrant/tutorials/getting-started/getting-started-install)
@@ -34,27 +39,18 @@ Able to install others that you want [Discover Vagrant Boxes](https://app.vagran
 ### Config Vagrantfile
 ```
 Vagrant.configure("2") do |config|
+  config.vm.provision "shell", path: "setup/gen_ssh.sh", privileged: false
 
-  config.vm.define "worker1" do |worker1|
-    worker1.vm.box = "ubuntu/bionic64"
-    worker1.vm.hostname = "worker1"
-    worker1.vm.network "private_network", ip: "192.168.10.22"
+  config.vm.define "etcd2" do |etcd2|
+    etcd2.vm.box = "ubuntu/bionic64"
+    etcd2.vm.hostname = "etcd2"
+    etcd2.vm.network "private_network", ip: "192.168.10.25"
   end
 
-  config.vm.define "worker2" do |worker2|
-    worker2.vm.box = "ubuntu/bionic64"
-    worker2.vm.hostname = "worker2"
-    worker2.vm.network "private_network", ip: "192.168.10.23"
-  end
-
-  config.vm.define "master" do |master|
-    master.vm.box = "ubuntu/bionic64"
-    master.vm.hostname = "master"
-    master.vm.network "private_network", ip: "192.168.10.21"
-    master.vm.provider "virtualbox" do |vb|
-      vb.memory = "2048"
-      vb.cpus = "2"
-    end
+  config.vm.define "etcd1" do |etcd1|
+    etcd1.vm.box = "ubuntu/bionic64"
+    etcd1.vm.hostname = "etcd1"
+    etcd1.vm.network "private_network", ip: "192.168.10.24"
   end
 
 end
@@ -78,6 +74,8 @@ Custom Vagrantfile and start
 ```
 vagrant plugin install vagrant-scp
 ```
+
+## Setup etcd cluster
 
 ### Setup cluster by manually
 [Steps](/docs/external_etcd/MANUAL.md)

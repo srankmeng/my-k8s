@@ -4,6 +4,12 @@
 * สร้าง Master node และ Cluster
 * สร้าง Worker node และทำการ join เข้า Cluster
 
+| Node    |      ip       |
+|---------|---------------|
+| master  | 192.168.10.21 |
+| worker1 | 192.168.10.22 |
+| worker2 | 192.168.10.23 |
+
 ## Vagrant
 
 [Document](https://developer.hashicorp.com/vagrant/tutorials/getting-started/getting-started-install)
@@ -75,6 +81,8 @@ Custom Vagrantfile and start
 - show global status `vagrant global-status`
 - show config `vagrant ssh-config` / `vagrant ssh-config {name}`
 
+
+## Setup cluster
 
 ### Setup cluster by manually
 [Steps](/docs/1master_2workers/MANUAL.md)

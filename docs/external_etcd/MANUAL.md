@@ -2,6 +2,11 @@
 * [Reference 1](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/setup-ha-etcd-with-kubeadm/)
 * [Reference 2](https://weng-albert.medium.com/building-high-availability-external-etcd-cluster-with-static-pods-step-by-step-en-84e9f3328b09)
 
+| Node    |      ip       |
+|---------|---------------|
+| etcd1   | 192.168.10.24 |
+| etcd2   | 192.168.10.25 |
+
 ## 1. ติดตั้ง Docker บน Ubuntu
 * [Reference](https://docs.docker.com/engine/install/ubuntu/)
 

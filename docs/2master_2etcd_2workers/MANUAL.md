@@ -1,15 +1,24 @@
-## Step การติดตั้ง Kubernetes cluster (1 Master node, 2 Worker nodes)
+## Step การติดตั้ง Kubernetes cluster (2 Master nodes, 2 external etcd, 2 Worker nodes)
+* Setup external etcd cluster
 * ติดตั้ง Docker และ Kubernetes ในทุก ๆ  node ทั้ง Master และ Worker node
-* สร้าง Master node และ Cluster
+* สร้าง Master node และ Cluster + copy certs from etcd + join master node
 * สร้าง Worker node และทำการ join เข้า Cluster
 
 | Node    |      ip       |
 |---------|---------------|
-| master  | 192.168.10.21 |
+| master1 | 192.168.10.20 |
+| master2 | 192.168.10.21 |
 | worker1 | 192.168.10.22 |
 | worker2 | 192.168.10.23 |
+| etcd1   | 192.168.10.24 |
+| etcd2   | 192.168.10.25 |
 
-## 1. ติดตั้ง Docker บน Ubuntu
+## 1. Setup external etcd cluster
+
+- [manual](/docs/external_etcd/MANUAL.md)
+- [vagrant](/docs/external_etcd/VAGRANT.md)
+
+## 2. ติดตั้ง Docker บน Ubuntu (all of master & worker nodes)
 * [Reference](https://docs.docker.com/engine/install/ubuntu/)
 
 รันเพื่อทดสอบว่าใช้ได้ 
@@ -58,7 +67,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 ```
 
-## 2. ติดตั้ง Kubernetes บน Ubuntu
+## 3. ติดตั้ง Kubernetes บน Ubuntu (all of master & worker nodes)
 
 
 ปิดการใช้งาน swap 
@@ -101,7 +110,7 @@ kubectl --help
 kubelet --help
 ```
 
-## 3. สร้าง Cluster และ Master node
+## 4. สร้าง Cluster และ Master node
 Set hostname (master node)
 ```
 sudo hostnamectl set-hostname master
@@ -112,16 +121,48 @@ Set hostname (worker node)
 sudo hostnamectl set-hostname w1
 ```
 
-Initialize Kubernetes on Master Node (master node only)
+Copy certs from any etcd to first master node (run on any etcd)
 ```
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16
+$ scp -r /etc/kubernetes/pki/etcd/ca.crt username@192.168.10.20:
+$ scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt username@192.168.10.20:
+$ scp -r /etc/kubernetes/pki/apiserver-etcd-client.key username@192.168.10.20:
 ```
 
-OR
+Move certs to /etc/kubernetes/pki/ directory (first master node)
 ```
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {PUBLIC_IP}:6443
+$ sudo mkdir -p /etc/kubernetes/pki/ /etc/kubernetes/pki/etcd
+$ sudo mv ca.crt /etc/kubernetes/pki/etcd
+$ sudo mv apiserver-etcd-client.crt /etc/kubernetes/pki/
+$ sudo mv apiserver-etcd-client.key /etc/kubernetes/pki/
 ```
-หมายเหตุ –pod-network-cidr=10.244.0.0/16 เป็นการระบุหมายเลข Private Subnet ของ Pod ซึ่งค่า 10.224.0.0/16 เป็นค่า default ของ Flannel
+
+Create kubeadm-config file (first master node)
+```
+sudo nano kubeadm-config.yaml
+```
+
+```
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: stable
+controlPlaneEndpoint: "192.168.10.20:6443"
+etcd:
+  external:
+    endpoints:
+      - https://192.168.10.24:2379
+      - https://192.168.10.25:2379
+    caFile: /etc/kubernetes/pki/etcd/ca.crt
+    certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
+    keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
+networking:
+    podSubnet: "10.244.0.0/16"
+```
+
+Initialize Kubernetes on Master Node (first master node)
+```
+sudo kubeadm init --config kubeadm-config.yaml --upload-certs
+```
 
 ถ้าเจอ error ประมานนี้
 ```
@@ -135,8 +176,8 @@ error execution phase preflight: [preflight] Some fatal errors occurred:
 
 ใช้ command
 ```
-sudo rm /etc/containerd/config.toml
-sudo systemctl restart containerd
+$ sudo rm /etc/containerd/config.toml
+$ sudo systemctl restart containerd
 ```
 
 ถ้าสำเร็จจะได้ประมานนี้
@@ -157,10 +198,20 @@ You should now deploy a pod network to the cluster.
 Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
   https://kubernetes.io/docs/concepts/cluster-administration/addons/
 
+You can now join any number of the control-plane node running the following command on each as root:
+
+  kubeadm join 192.168.10.20:6443 --token 3gn14b.kkf17ebqbs3dnfyh \
+        --discovery-token-ca-cert-hash sha256:393523381b84172d26207d48c768ef53689b47878041e42854ac76dac7b527ce \
+        --control-plane --certificate-key 7b6b357210d9ff61eea2cdeded5ee85a710b1881631ee1b5d2c502cdaa645028
+
+Please note that the certificate-key gives access to cluster sensitive data, keep it secret!
+As a safeguard, uploaded-certs will be deleted in two hours; If necessary, you can use
+"kubeadm init phase upload-certs --upload-certs" to reload certs afterward.
+
 Then you can join any number of worker nodes by running the following on each as root:
 
-kubeadm join 192.168.1.36:6443 --token 2rmgf8.jvwpidbmo1j2zf9e \
-	--discovery-token-ca-cert-hash sha256:2559dfd530c5ed63e6f43334dbe5d1261932112f133ab47be1abdb4218a90076
+kubeadm join 192.168.10.20:6443 --token 3gn14b.kkf17ebqbs3dnfyh \
+        --discovery-token-ca-cert-hash sha256:393523381b84172d26207d48c768ef53689b47878041e42854ac76dac7b527ce 
 ```
 
 
@@ -182,12 +233,20 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
+Join master node into master node (master node only)
+ใช้ command ที่ได้หลังจากสร้าง master node
+```
+kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
+  --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98 \
+  --control-plane --certificate-key 7cac221ab2643bbd61b68a90843bc5222eb07941ef832f0123274e323a626716
+```
+
 Join worker node into master node (worker node only)
 
 ใช้ command ที่ได้หลังจากสร้าง master node
 ```
-kubeadm join 192.168.1.36:6443 --token 2rmgf8.jvwpidbmo1j2zf9e \
-	--discovery-token-ca-cert-hash sha256:2559dfd530c5ed63e6f43334dbe5d1261932112f133ab47be1abdb4218a90076
+kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
+  --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98
 ```
 
 ดู nodes อีกรอบที่ master mode
@@ -198,9 +257,10 @@ kubectl get nodes
 จะได้
 ```
 NAME     STATUS   ROLES           AGE     VERSION
-master   Ready    control-plane   4m48s   v1.28.2
-w1       Ready    <none>          7s      v1.28.2
-w2       Ready    <none>          3s      v1.28.2
+master1   Ready    control-plane   4h37m   v1.28.2
+master2   Ready    control-plane   4h25m   v1.28.2
+worker1   Ready    <none>          4h19m   v1.28.2
+worker2   Ready    <none>          4h17m   v1.28.2
 ```
 เป็นอันเรียบร้อยสำหรับการสร้าง cluster
 
