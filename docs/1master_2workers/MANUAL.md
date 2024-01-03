@@ -64,16 +64,7 @@ sudo systemctl start docker
 ปิดการใช้งาน swap 
 ```
 sudo swapoff -a
-```
-
-ปิดการใช้งาน swap ถาวรแม้จะเปิดปิดเครื่องใหม่
-```
-sudo nano /etc/fstab
-```
-
-จากนั้น comment code บรรทัดที่เป็น swap
-```
-#/swap.img  none    swap    sw  0    0 
+sudo sed -i 's/^.*swap/#&/' /etc/fstab
 ```
 
 Enter the following to add a signing key in you on Ubuntu
@@ -121,7 +112,6 @@ OR
 ```
 sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {PUBLIC_IP}:6443
 ```
-หมายเหตุ –pod-network-cidr=10.244.0.0/16 เป็นการระบุหมายเลข Private Subnet ของ Pod ซึ่งค่า 10.224.0.0/16 เป็นค่า default ของ Flannel
 
 ถ้าเจอ error ประมานนี้
 ```
@@ -173,7 +163,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 Deploy Pod Network to Cluster
 ```
-kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 ```
 
 Verify that everything is running
@@ -267,22 +257,7 @@ kubectl delete -f nginx.yaml
 kubectl get pods
 ```
 
-ุถ้า STATUS เป็น ContainerCreating นานแล้ว อาจจะมีปัญหา
-```
-NAME                             READY   STATUS              RESTARTS   AGE
-nginx-project-78b94b9cc8-7brtm   0/1     ContainerCreating   0          103s
-nginx-project-78b94b9cc8-brnmp   0/1     ContainerCreating   0          103s
-```
-
-ลองไปที่ worker node แล้ว `sudo nano /run/flannel/subnet.env` ใส่ค่า
-```
-FLANNEL_NETWORK=10.244.0.0/16
-FLANNEL_SUBNET=10.244.0.1/24
-FLANNEL_MTU=1450
-FLANNEL_IPMASQ=true
-```
-
-ดู pods อีกรอบ เป็น Running แล้ว
+จะได้
 ```
 NAME                             READY   STATUS    RESTARTS   AGE
 nginx-project-78b94b9cc8-7brtm   1/1     Running   0          7m38s

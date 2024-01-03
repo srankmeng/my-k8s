@@ -24,14 +24,14 @@ brew install hashicorp/tap/hashicorp-vagrant
 ### Initialize the project
 Create directory then run command line
 ```
-vagrant init ubuntu/bionic64
+vagrant init ubuntu/focal64
 ```
 
 
 ### Install a box
 Create box
 ```
-vagrant box add ubuntu/bionic64
+vagrant box add ubuntu/focal64
 ```
 Able to install others that you want [Discover Vagrant Boxes](https://app.vagrantup.com/boxes/search)
 
@@ -42,13 +42,13 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", path: "setup/gen_ssh.sh", privileged: false
 
   config.vm.define "etcd2" do |etcd2|
-    etcd2.vm.box = "ubuntu/bionic64"
+    etcd2.vm.box = "ubuntu/focal64"
     etcd2.vm.hostname = "etcd2"
     etcd2.vm.network "private_network", ip: "192.168.10.25"
   end
 
   config.vm.define "etcd1" do |etcd1|
-    etcd1.vm.box = "ubuntu/bionic64"
+    etcd1.vm.box = "ubuntu/focal64"
     etcd1.vm.hostname = "etcd1"
     etcd1.vm.network "private_network", ip: "192.168.10.24"
   end
@@ -87,7 +87,7 @@ Vagrant.configure("2") do |config|
   config.vm.provision "shell", path: "setup/gen_ssh.sh", privileged: false
 
   config.vm.define "etcd2" do |etcd2|
-    etcd2.vm.box = "ubuntu/bionic64"
+    etcd2.vm.box = "ubuntu/focal64"
     etcd2.vm.hostname = "etcd2"
     etcd2.vm.network "private_network", ip: "192.168.10.25"
     etcd2.vm.provision "shell", path: "setup/common.sh", privileged: false
@@ -95,7 +95,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "etcd1" do |etcd1|
-    etcd1.vm.box = "ubuntu/bionic64"
+    etcd1.vm.box = "ubuntu/focal64"
     etcd1.vm.hostname = "etcd1"
     etcd1.vm.network "private_network", ip: "192.168.10.24"
     etcd1.vm.provision "shell", path: "setup/common.sh", privileged: false
@@ -139,9 +139,27 @@ $ ETCDCTL_API=3 etcdctl member list \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
---endpoints https://192.168.10.24:2379
+--endpoints https://192.168.10.24:2379 --write-out=table
 
 ...
 17cfa8f82af3676e, started, etcd1, https://192.168.10.24:2380, https://192.168.10.24:2379, false
 9da3e67aca53ba11, started, etcd2, https://192.168.10.25:2380, https://192.168.10.25:2379, false
+```
+
+Write
+```
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://192.168.10.25:2379 put name meng
+```
+
+Read
+```
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://192.168.10.25:2379 get name
 ```

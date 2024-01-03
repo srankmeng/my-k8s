@@ -19,6 +19,7 @@ sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-buildx-plug
 
 # swapoff
 sudo swapoff -a
+sudo sed -i 's/^.*swap/#&/' /etc/fstab
 
 # add a signing key in you on Ubuntu
 sudo apt update

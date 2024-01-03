@@ -271,5 +271,23 @@ $ ETCDCTL_API=3 etcdctl member list \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
---endpoints https://192.168.10.25:2379
+--endpoints https://192.168.10.25:2379 --write-out=table
+```
+
+Write
+```
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://192.168.10.25:2379 put name meng
+```
+
+Read
+```
+$ etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://192.168.10.25:2379 get name
 ```

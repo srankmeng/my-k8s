@@ -30,14 +30,14 @@ brew install hashicorp/tap/hashicorp-vagrant
 ### Initialize the project
 Create directory then run command line
 ```
-vagrant init ubuntu/bionic64
+vagrant init ubuntu/focal64
 ```
 
 
 ### Install a box
 Create box
 ```
-vagrant box add ubuntu/bionic64
+vagrant box add ubuntu/focal64
 ```
 Able to install others that you want [Discover Vagrant Boxes](https://app.vagrantup.com/boxes/search)
 
@@ -47,19 +47,19 @@ Able to install others that you want [Discover Vagrant Boxes](https://app.vagran
 Vagrant.configure("2") do |config|
 
   config.vm.define "worker1" do |worker1|
-    worker1.vm.box = "ubuntu/bionic64"
+    worker1.vm.box = "ubuntu/focal64"
     worker1.vm.hostname = "worker1"
     worker1.vm.network "private_network", ip: "192.168.10.22"
   end
 
   config.vm.define "worker2" do |worker2|
-    worker2.vm.box = "ubuntu/bionic64"
+    worker2.vm.box = "ubuntu/focal64"
     worker2.vm.hostname = "worker2"
     worker2.vm.network "private_network", ip: "192.168.10.23"
   end
 
   config.vm.define "master1" do |master1|
-    master1.vm.box = "ubuntu/bionic64"
+    master1.vm.box = "ubuntu/focal64"
     master1.vm.hostname = "master1"
     master1.vm.network "private_network", ip: "192.168.10.20"
     master1.vm.provider "virtualbox" do |vb|
@@ -69,7 +69,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "master2" do |master2|
-    master2.vm.box = "ubuntu/bionic64"
+    master2.vm.box = "ubuntu/focal64"
     master2.vm.hostname = "master2"
     master2.vm.network "private_network", ip: "192.168.10.21"
     master2.vm.provider "virtualbox" do |vb|
@@ -112,21 +112,21 @@ Add worker1,worker2,master1,master2, on Vagrantfile
 Vagrant.configure("2") do |config|
 
   config.vm.define "worker1" do |worker1|
-    worker1.vm.box = "ubuntu/bionic64"
+    worker1.vm.box = "ubuntu/focal64"
     worker1.vm.hostname = "worker1"
     worker1.vm.network "private_network", ip: "192.168.10.22"
     worker1.vm.provision "shell", path: "setup/common.sh", privileged: false
   end
 
   config.vm.define "worker2" do |worker2|
-    worker2.vm.box = "ubuntu/bionic64"
+    worker2.vm.box = "ubuntu/focal64"
     worker2.vm.hostname = "worker2"
     worker2.vm.network "private_network", ip: "192.168.10.23"
     worker2.vm.provision "shell", path: "setup/common.sh", privileged: false
   end
 
   config.vm.define "master1" do |master1|
-    master1.vm.box = "ubuntu/bionic64"
+    master1.vm.box = "ubuntu/focal64"
     master1.vm.hostname = "master1"
     master1.vm.network "private_network", ip: "192.168.10.20"
     master1.vm.provision "shell", path: "setup/common.sh", privileged: false
@@ -137,7 +137,7 @@ Vagrant.configure("2") do |config|
   end
 
   config.vm.define "master2" do |master2|
-    master2.vm.box = "ubuntu/bionic64"
+    master2.vm.box = "ubuntu/focal64"
     master2.vm.hostname = "master2"
     master2.vm.network "private_network", ip: "192.168.10.21"
     master2.vm.provision "shell", path: "setup/common.sh", privileged: false
