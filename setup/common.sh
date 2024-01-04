@@ -32,5 +32,11 @@ sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 sudo apt update   
 sudo apt install -y kubeadm
 
+# update kubelet with ip
+echo "KUBELET_EXTRA_ARGS=--node-ip=$1" | sudo tee /etc/default/kubelet
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
+
 sudo rm /etc/containerd/config.toml
 sudo systemctl restart containerd
+
