@@ -1,4 +1,5 @@
 ## Step การติดตั้ง Kubernetes cluster (1 Master node, 2 Worker nodes)
+* Setup OS
 * ติดตั้ง Docker และ Kubernetes ในทุก ๆ  node ทั้ง Master และ Worker node
 * สร้าง Master node และ Cluster
 * สร้าง Worker node และทำการ join เข้า Cluster
@@ -9,7 +10,37 @@
 | worker1 | 192.168.10.22 |
 | worker2 | 192.168.10.23 |
 
-## 1. ติดตั้ง Docker บน Ubuntu
+## 1. Setup OS
+
+ปิดการใช้งาน swap 
+```
+sudo swapoff -a
+sudo sed -i 's/^.*swap/#&/' /etc/fstab
+```
+
+Add Kernel Parameters
+```
+sudo tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
+sudo modprobe overlay
+sudo modprobe br_netfilter
+```
+
+Configure kernel parameters
+```
+sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+sudo sysctl --system
+```
+
+## 2. ติดตั้ง Docker บน Ubuntu
+
 * [Reference](https://docs.docker.com/engine/install/ubuntu/)
 
 รันเพื่อทดสอบว่าใช้ได้ 
@@ -58,14 +89,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 ```
 
-## 2. ติดตั้ง Kubernetes บน Ubuntu
-
-
-ปิดการใช้งาน swap 
-```
-sudo swapoff -a
-sudo sed -i 's/^.*swap/#&/' /etc/fstab
-```
+## 3. ติดตั้ง Kubernetes บน Ubuntu
 
 Enter the following to add a signing key in you on Ubuntu
 ```
@@ -79,10 +103,23 @@ Add Software Repositories: Kubernetes is not included in the default repositorie
 sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 ```
 
+Configure containerd
+```
+containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
+sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
+```
+
 Install Kubeadm
 ```
 sudo apt update   
 sudo apt install -y kubeadm
+```
+
+update kubelet with ip (replace node ip in `<NODE_IP>`)
+```
+echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
 ```
 
 Check
@@ -92,7 +129,7 @@ kubectl --help
 kubelet --help
 ```
 
-## 3. สร้าง Cluster และ Master node
+## 4. สร้าง Cluster และ Master node
 Set hostname (master node)
 ```
 sudo hostnamectl set-hostname master
@@ -110,7 +147,7 @@ sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 
 OR
 ```
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --control-plane-endpoint {PUBLIC_IP}:6443
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={PUBLIC_IP}:6443
 ```
 
 ถ้าเจอ error ประมานนี้
@@ -163,7 +200,7 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
 Deploy Pod Network to Cluster
 ```
-kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
 ```
 
 Verify that everything is running

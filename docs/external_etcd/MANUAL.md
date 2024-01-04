@@ -7,7 +7,36 @@
 | etcd1   | 192.168.10.24 |
 | etcd2   | 192.168.10.25 |
 
-## 1. ติดตั้ง Docker บน Ubuntu
+## 1. Setup OS
+
+ปิดการใช้งาน swap 
+```
+sudo swapoff -a
+sudo sed -i 's/^.*swap/#&/' /etc/fstab
+```
+
+Add Kernel Parameters
+```
+sudo tee /etc/modules-load.d/containerd.conf <<EOF
+overlay
+br_netfilter
+EOF
+sudo modprobe overlay
+sudo modprobe br_netfilter
+```
+
+Configure kernel parameters
+```
+sudo tee /etc/sysctl.d/kubernetes.conf <<EOF
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward = 1
+EOF
+
+sudo sysctl --system
+```
+
+## 2. ติดตั้ง Docker บน Ubuntu
 * [Reference](https://docs.docker.com/engine/install/ubuntu/)
 
 รันเพื่อทดสอบว่าใช้ได้ 
@@ -56,23 +85,7 @@ sudo systemctl enable docker
 sudo systemctl start docker
 ```
 
-## 2. ติดตั้ง Kubernetes บน Ubuntu
-
-
-ปิดการใช้งาน swap 
-```
-sudo swapoff -a
-```
-
-ปิดการใช้งาน swap ถาวรแม้จะเปิดปิดเครื่องใหม่
-```
-sudo nano /etc/fstab
-```
-
-จากนั้น comment code บรรทัดที่เป็น swap
-```
-#/swap.img  none    swap    sw  0    0 
-```
+## 3. ติดตั้ง Kubernetes บน Ubuntu
 
 Enter the following to add a signing key in you on Ubuntu
 ```
@@ -86,10 +99,23 @@ Add Software Repositories: Kubernetes is not included in the default repositorie
 sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 ```
 
+Configure containerd
+```
+containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
+sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
+```
+
 Install Kubeadm
 ```
 sudo apt update   
 sudo apt install -y kubeadm
+```
+
+update kubelet with ip (replace node ip in `<NODE_IP>`)
+```
+echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
+sudo systemctl daemon-reload
+sudo systemctl restart kubelet
 ```
 
 Check
@@ -99,7 +125,7 @@ kubectl --help
 kubelet --help
 ```
 
-## 3. สร้าง Cluster และ etcd node
+## 4. สร้าง Cluster และ etcd node
 Configure the kubelet (all nodes)
 ```
 cat << EOF > /etc/systemd/system/kubelet.service.d/kubelet.conf
@@ -190,28 +216,28 @@ This creates two files:
 
 Create certificates for each member. (on etcd 1 only)
 ```
-kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
-kubeadm init phase certs etcd-peer --config=/tmp/${HOST1}/kubeadmcfg.yaml
-kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
-kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
-cp -R /etc/kubernetes/pki /tmp/${HOST1}/
-find /etc/kubernetes/pki -not -name ca.crt -not -name ca.key -type f -delete
+sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-peer --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo cp -R /etc/kubernetes/pki /tmp/${HOST1}/
+sudo find /etc/kubernetes/pki -not -name ca.crt -not -name ca.key -type f -delete
 
-kubeadm init phase certs etcd-server --config=/tmp/${HOST0}/kubeadmcfg.yaml
-kubeadm init phase certs etcd-peer --config=/tmp/${HOST0}/kubeadmcfg.yaml
-kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
-kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-peer --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
 # No need to move the certs because they are for HOST0
 
 # clean up certs that should not be copied off this host
-find /tmp/${HOST1} -name ca.key -type f -delete
+sudo find /tmp/${HOST1} -name ca.key -type f -delete
 ```
 
 Copy certificates and kubeadm configs. (on etcd 1 only)
 ```
 $ USER=ubuntu
 $ HOST=${HOST1}
-$ scp -r /tmp/${HOST}/* ${USER}@${HOST}:
+$ sudo scp -r /tmp/${HOST}/* ${USER}@${HOST}:
 $ ssh ${USER}@${HOST}
 USER@HOST $ sudo -Es
 root@HOST $ chown -R root:root pki
@@ -245,29 +271,32 @@ $ root@HOST1 $ kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
 
 Install etcdctl for Check the cluster health
 ```
-$ ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
+ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
 
-$ wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
-$ tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
-$ cd etcd-${ETCD_RELEASE}-linux-amd64
-$ cp -rp etcdctl /usr/local/bin
+wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+cd etcd-${ETCD_RELEASE}-linux-amd64
+cp -rp etcdctl /usr/local/bin
 ```
 
 Check the cluster health.
 ```
-$ ETCDCTL_API=3 etcdctl \
+ETCDCTL_API=3 etcdctl \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
 --endpoints https://${HOST0}:2379 endpoint health
-...
+```
+
+output
+```
 https://[HOST0 IP]:2379 is healthy: successfully committed proposal: took = 16.283339ms
 https://[HOST1 IP]:2379 is healthy: successfully committed proposal: took = 19.44402ms
 ```
 
 View member list.
 ```
-$ ETCDCTL_API=3 etcdctl member list \
+ETCDCTL_API=3 etcdctl member list \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
@@ -276,7 +305,7 @@ $ ETCDCTL_API=3 etcdctl member list \
 
 Write
 ```
-$ etcdctl \
+etcdctl \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
@@ -285,7 +314,7 @@ $ etcdctl \
 
 Read
 ```
-$ etcdctl \
+etcdctl \
 --cert /etc/kubernetes/pki/etcd/peer.crt \
 --key /etc/kubernetes/pki/etcd/peer.key \
 --cacert /etc/kubernetes/pki/etcd/ca.crt \
