@@ -4,6 +4,9 @@
 sudo swapoff -a
 sudo sed -i 's/^.*swap/#&/' /etc/fstab
 
+# install tree lib
+sudo apt-get install tree
+
 # Add Kernel Parameters
 sudo tee /etc/modules-load.d/containerd.conf <<EOF
 overlay
@@ -50,9 +53,6 @@ sudo apt-add-repository "deb http://apt.kubernetes.io/ kubernetes-xenial main"
 containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
 sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
 
-sudo systemctl restart containerd
-sudo systemctl enable containerd
-
 # Install Kubeadm
 sudo apt update   
 sudo apt install -y kubeadm
@@ -61,7 +61,9 @@ sudo apt install -y kubeadm
 echo "KUBELET_EXTRA_ARGS=--node-ip=$1" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
+sudo systemctl restart containerd
 
+# sudo systemctl restart containerd.service # if [systemctl restart containerd] not work
 # sudo rm /etc/containerd/config.toml
 # sudo systemctl restart containerd
 

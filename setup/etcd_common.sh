@@ -1,11 +1,11 @@
 #!/bin/bash
 
+# install etcd lib
 ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
 
 wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
 tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
-cd etcd-${ETCD_RELEASE}-linux-amd64
-cp -rp etcdctl /usr/local/bin
+sudo mv etcd-${ETCD_RELEASE}-linux-amd64/etcd* /usr/local/bin/
 
 cat << EOF > /etc/systemd/system/kubelet.service.d/kubelet.conf
 # Replace "systemd" with the cgroup driver of your container runtime. The default value in the kubelet is "cgroupfs".

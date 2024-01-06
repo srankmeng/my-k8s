@@ -199,7 +199,7 @@ kubectl delete -f nginx.yaml
 kubectl get pods
 ```
 
-ุจะได้
+จะได้
 ```
 NAME                             READY   STATUS    RESTARTS   AGE
 nginx-project-78b94b9cc8-7brtm   1/1     Running   0          7m38s

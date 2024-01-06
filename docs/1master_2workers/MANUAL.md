@@ -18,6 +18,11 @@ sudo swapoff -a
 sudo sed -i 's/^.*swap/#&/' /etc/fstab
 ```
 
+install tree lib 
+```
+sudo apt-get install tree
+```
+
 Add Kernel Parameters
 ```
 sudo tee /etc/modules-load.d/containerd.conf <<EOF
@@ -120,6 +125,7 @@ update kubelet with ip (replace node ip in `<NODE_IP>`)
 echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
+sudo systemctl restart containerd
 ```
 
 Check
@@ -147,24 +153,24 @@ sudo kubeadm init --pod-network-cidr=10.244.0.0/16
 
 OR
 ```
-sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={PUBLIC_IP}:6443
+sudo kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={PUBLIC_IP}
 ```
 
-ถ้าเจอ error ประมานนี้
-```
-[init] Using Kubernetes version: v1.24.1
-[preflight] Running pre-flight checks
-error execution phase preflight: [preflight] Some fatal errors occurred:
-        [ERROR CRI]: container runtime is not running: output: time="2023-01-19T15:05:35Z" level=fatal msg="validate service connection: CRI v1 runtime API is not implemented for endpoint \"unix:///var/run/containerd/containerd.sock\": rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService"
-, error: exit status 1
-[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
-```
-
-ใช้ command
-```
-sudo rm /etc/containerd/config.toml
-sudo systemctl restart containerd
-```
+>ถ้าเจอ error ประมานนี้
+>```
+>[init] Using Kubernetes version: v1.24.1
+>[preflight] Running pre-flight checks
+>error execution phase preflight: [preflight] Some fatal errors occurred:
+>        [ERROR CRI]: container runtime is not running: output: time="2023-01-19T15:05:35Z" level=fatal msg="validate service connection: CRI v1 runtime API is not implemented for endpoint \"unix:///var/run/containerd/containerd.sock\": rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService"
+>, error: exit status 1
+>[preflight] If you know what you are doing, you can make a check non-fatal >with `--ignore-preflight-errors=...`
+>```
+>
+>ใช้ command
+>```
+>sudo rm /etc/containerd/config.toml
+>sudo systemctl restart containerd
+>```
 
 ถ้าสำเร็จจะได้ประมานนี้
 ```
@@ -217,6 +223,11 @@ kubeadm join 192.168.1.36:6443 --token 2rmgf8.jvwpidbmo1j2zf9e \
 	--discovery-token-ca-cert-hash sha256:2559dfd530c5ed63e6f43334dbe5d1261932112f133ab47be1abdb4218a90076
 ```
 
+> ถ้าไม่ได้เก็บไว้ ให้ generate token
+>```
+>kubeadm token create --print-join-command
+>```
+
 ดู nodes อีกรอบที่ master mode
 ```
 kubectl get nodes
@@ -233,11 +244,6 @@ w2       Ready    <none>          3s      v1.28.2
 
 ## ลองรัน Nginx
 สร้างไฟล์ nginx.yaml
-```
-touch nginx.yaml
-```
-
-แก้ไขไฟล์ 
 ```
 nano nginx.yaml
 ```

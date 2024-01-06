@@ -22,6 +22,11 @@ sudo swapoff -a
 sudo sed -i 's/^.*swap/#&/' /etc/fstab
 ```
 
+install tree lib 
+```
+sudo apt-get install tree
+```
+
 Add Kernel Parameters
 ```
 sudo tee /etc/modules-load.d/containerd.conf <<EOF
@@ -128,6 +133,7 @@ update kubelet with ip (replace node ip in `<NODE_IP>`)
 echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
+sudo systemctl restart containerd
 ```
 
 Check
@@ -150,17 +156,17 @@ sudo hostnamectl set-hostname w1
 
 Copy certs from any etcd to first master node (run on any etcd)
 ```
-$ scp -r /etc/kubernetes/pki/etcd/ca.crt username@192.168.10.20:
-$ scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt username@192.168.10.20:
-$ scp -r /etc/kubernetes/pki/apiserver-etcd-client.key username@192.168.10.20:
+scp -r /etc/kubernetes/pki/etcd/ca.crt ubuntu@206.189.151.185:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt ubuntu@206.189.151.185:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.key ubuntu@206.189.151.185:
 ```
 
 Move certs to /etc/kubernetes/pki/ directory (first master node)
 ```
-$ sudo mkdir -p /etc/kubernetes/pki/ /etc/kubernetes/pki/etcd
-$ sudo mv ca.crt /etc/kubernetes/pki/etcd
-$ sudo mv apiserver-etcd-client.crt /etc/kubernetes/pki/
-$ sudo mv apiserver-etcd-client.key /etc/kubernetes/pki/
+sudo mkdir -p /etc/kubernetes/pki/ /etc/kubernetes/pki/etcd
+sudo mv ca.crt /etc/kubernetes/pki/etcd
+sudo mv apiserver-etcd-client.crt /etc/kubernetes/pki/
+sudo mv apiserver-etcd-client.key /etc/kubernetes/pki/
 ```
 
 Create kubeadm-config file (first master node)
@@ -173,12 +179,12 @@ sudo nano kubeadm-config.yaml
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 kubernetesVersion: stable
-controlPlaneEndpoint: "192.168.10.20:6443"
+controlPlaneEndpoint: "206.189.151.185:6443"
 etcd:
   external:
     endpoints:
-      - https://192.168.10.24:2379
-      - https://192.168.10.25:2379
+      - https://159.223.39.172:2379
+      - https://159.223.37.253:2379
     caFile: /etc/kubernetes/pki/etcd/ca.crt
     certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
     keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
@@ -191,21 +197,21 @@ Initialize Kubernetes on Master Node (first master node)
 sudo kubeadm init --config kubeadm-config.yaml --upload-certs
 ```
 
-ถ้าเจอ error ประมานนี้
-```
-[init] Using Kubernetes version: v1.24.1
-[preflight] Running pre-flight checks
-error execution phase preflight: [preflight] Some fatal errors occurred:
-        [ERROR CRI]: container runtime is not running: output: time="2023-01-19T15:05:35Z" level=fatal msg="validate service connection: CRI v1 runtime API is not implemented for endpoint \"unix:///var/run/containerd/containerd.sock\": rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService"
-, error: exit status 1
-[preflight] If you know what you are doing, you can make a check non-fatal with `--ignore-preflight-errors=...`
-```
-
-ใช้ command
-```
-$ sudo rm /etc/containerd/config.toml
-$ sudo systemctl restart containerd
-```
+>ถ้าเจอ error ประมานนี้
+>```
+>[init] Using Kubernetes version: v1.24.1
+>[preflight] Running pre-flight checks
+>error execution phase preflight: [preflight] Some fatal errors occurred:
+>        [ERROR CRI]: container runtime is not running: output: time="2023-01-19T15:05:35Z" level=fatal msg="validate service connection: CRI v1 runtime API is not implemented for endpoint \"unix:///var/run/containerd/containerd.sock\": rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService"
+>, error: exit status 1
+>[preflight] If you know what you are doing, you can make a check non-fatal >with `--ignore-preflight-errors=...`
+>```
+>
+>ใช้ command
+>```
+>$ sudo rm /etc/containerd/config.toml
+>$ sudo systemctl restart containerd
+>```
 
 ถ้าสำเร็จจะได้ประมานนี้
 ```
@@ -252,6 +258,8 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 Deploy Pod Network to Cluster
 ```
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+
+https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
 ```
 
 Verify that everything is running
@@ -276,6 +284,11 @@ kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
   --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98
 ```
 
+> ถ้าไม่ได้เก็บไว้ ให้ generate token
+>```
+>kubeadm token create --print-join-command
+>```
+
 ดู nodes อีกรอบที่ master mode
 ```
 kubectl get nodes
@@ -293,11 +306,6 @@ worker2   Ready    <none>          4h17m   v1.28.2
 
 ## ลองรัน Nginx
 สร้างไฟล์ nginx.yaml
-```
-touch nginx.yaml
-```
-
-แก้ไขไฟล์ 
 ```
 nano nginx.yaml
 ```

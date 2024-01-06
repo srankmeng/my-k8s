@@ -15,6 +15,11 @@ sudo swapoff -a
 sudo sed -i 's/^.*swap/#&/' /etc/fstab
 ```
 
+install tree lib 
+```
+sudo apt-get install tree
+```
+
 Add Kernel Parameters
 ```
 sudo tee /etc/modules-load.d/containerd.conf <<EOF
@@ -116,6 +121,7 @@ update kubelet with ip (replace node ip in `<NODE_IP>`)
 echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
 sudo systemctl restart kubelet
+sudo systemctl restart containerd
 ```
 
 Check
@@ -275,8 +281,7 @@ ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest
 
 wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
 tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
-cd etcd-${ETCD_RELEASE}-linux-amd64
-cp -rp etcdctl /usr/local/bin
+sudo mv etcd-${ETCD_RELEASE}-linux-amd64/etcd* /usr/local/bin/
 ```
 
 Check the cluster health.
