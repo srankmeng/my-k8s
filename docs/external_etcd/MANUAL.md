@@ -216,9 +216,12 @@ Generate the certificate authority(on etcd 1 only)
 ```
 kubeadm init phase certs etcd-ca
 ```
-This creates two files:
-- /etc/kubernetes/pki/etcd/ca.crt
-- /etc/kubernetes/pki/etcd/ca.key
+>This creates two files:
+>```
+>/etc/kubernetes/pki/etcd/
+>├── ca.crt
+>└── ca.key
+>```
 
 Create certificates for each member. (on etcd 1 only)
 ```
@@ -241,38 +244,89 @@ sudo find /tmp/${HOST1} -name ca.key -type f -delete
 
 Copy certificates and kubeadm configs. (on etcd 1 only)
 ```
-$ USER=ubuntu
-$ HOST=${HOST1}
-$ sudo scp -r /tmp/${HOST}/* ${USER}@${HOST}:
-$ ssh ${USER}@${HOST}
-USER@HOST $ sudo -Es
-root@HOST $ chown -R root:root pki
-root@HOST $ mv pki /etc/kubernetes/
+USER=ubuntu
+HOST=${HOST1}
+sudo scp -r /tmp/${HOST}/* ${USER}@${HOST}:
 ```
 
-if use vagrant
-install [plugin](https://github.com/invernizzi/vagrant-scp)
-
-You have to copy key in host into etcd vm. In this case copy etcd2 key from host into etcd1 because etcd1 need to scp to etcd2.
+ไปที่ etcd อีก node แล้วย้าย certificates ไปที่ /etc/kubernetes/ ของเครื่องนั้น
 ```
-vagrant scp .vagrant/machines/etcd2/virtualbox/private_key etcd1:etcd2_key
+sudo -Es
+chown -R root:root pki
+mv pki /etc/kubernetes/
 ```
 
-Copy certificates from etcd1 to etcd2
-```
-$ scp -i etcd2_key -r /tmp/${HOST}/* ${USER}@${HOST}:
+>if use vagrant
+>install [plugin](https://github.com/invernizzi/vagrant-scp)
+>
+>You have to copy key in host into etcd vm. In this case copy etcd2 key from host into etcd1 because etcd1 need to scp to etcd2.
+>```
+>vagrant scp .vagrant/machines/etcd2/virtualbox/private_key etcd1:etcd2_key
+>```
+>
+>Copy certificates from etcd1 to etcd2
+>```
+>$ scp -i etcd2_key -r /tmp/${HOST}/* ${USER}@${HOST}:
+>
+>$ ssh -i etcd2_key ${USER}@${HOST}
+>USER@HOST $ sudo -Es
+>root@HOST $ chown -R root:root pki
+>root@HOST $ mv pki /etc/kubernetes/
+>```
+>
+>>ถ้า Copy ไม่ได้เพราะติด permission
+>>```
+>>sudo chmod -R 755 /tmp/${HOST}/pki/
+>>```
 
-$ ssh -i etcd2_key ${USER}@${HOST}
-USER@HOST $ sudo -Es
-root@HOST $ chown -R root:root pki
-root@HOST $ mv pki /etc/kubernetes/
+Check file in directory each node
+On `$HOST0`:
+```
+/tmp/${HOST0}
+└── kubeadmcfg.yaml
+---
+/etc/kubernetes/pki
+├── apiserver-etcd-client.crt
+├── apiserver-etcd-client.key
+└── etcd
+    ├── ca.crt
+    ├── ca.key
+    ├── healthcheck-client.crt
+    ├── healthcheck-client.key
+    ├── peer.crt
+    ├── peer.key
+    ├── server.crt
+    └── server.key
+```
+
+On `$HOST1`:
+```
+$HOME
+└── kubeadmcfg.yaml
+---
+/etc/kubernetes/pki
+├── apiserver-etcd-client.crt
+├── apiserver-etcd-client.key
+└── etcd
+    ├── ca.crt
+    ├── healthcheck-client.crt
+    ├── healthcheck-client.key
+    ├── peer.crt
+    ├── peer.key
+    ├── server.crt
+    └── server.key
 ```
 
 Create the static pod manifests (depend on each nodes)
-```
-$ root@HOST0 $ kubeadm init phase etcd local --config=/tmp/${HOST0}/kubeadmcfg.yaml
 
-$ root@HOST1 $ kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
+On `$HOST0`:
+```
+kubeadm init phase etcd local --config=/tmp/${HOST0}/kubeadmcfg.yaml
+```
+
+On `$HOST1`:
+```
+kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
 ```
 
 Install etcdctl for Check the cluster health

@@ -175,21 +175,18 @@ sudo nano kubeadm-config.yaml
 ```
 
 ```
----
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 kubernetesVersion: stable
-controlPlaneEndpoint: "206.189.151.185:6443"
+controlPlaneEndpoint: "192.168.10.20:6443"
 etcd:
   external:
     endpoints:
-      - https://159.223.39.172:2379
-      - https://159.223.37.253:2379
+      - https://192.168.10.24:2379
+      - https://192.168.10.25:2379
     caFile: /etc/kubernetes/pki/etcd/ca.crt
     certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
     keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
-networking:
-    podSubnet: "10.244.0.0/16"
 ```
 
 Initialize Kubernetes on Master Node (first master node)
