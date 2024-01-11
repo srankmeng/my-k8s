@@ -156,9 +156,9 @@ sudo hostnamectl set-hostname w1
 
 Copy certs from any etcd to first master node (run on any etcd)
 ```
-scp -r /etc/kubernetes/pki/etcd/ca.crt ubuntu@206.189.151.185:
-scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt ubuntu@206.189.151.185:
-scp -r /etc/kubernetes/pki/apiserver-etcd-client.key ubuntu@206.189.151.185:
+scp -r /etc/kubernetes/pki/etcd/ca.crt ubuntu@192.168.10.20:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt ubuntu@192.168.10.20:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.key ubuntu@192.168.10.20:
 ```
 
 Move certs to /etc/kubernetes/pki/ directory (first master node)
@@ -187,7 +187,33 @@ etcd:
     caFile: /etc/kubernetes/pki/etcd/ca.crt
     certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
     keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
+networking:
+  podSubnet: "10.244.0.0/16"
 ```
+
+>or maybe for some network
+>```
+>apiVersion: kubeadm.k8s.io/v1beta3
+>kind: ClusterConfiguration
+>kubernetesVersion: stable
+>controlPlaneEndpoint: "192.168.10.20:6443"
+>etcd:
+>  external:
+>    endpoints:
+>      - https://192.168.10.24:2379
+>      - https://192.168.10.25:2379
+>    caFile: /etc/kubernetes/pki/etcd/ca.crt
+>    certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
+>    keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
+>networking:
+>  podSubnet: "10.244.0.0/16"
+>---
+>apiVersion: kubeadm.k8s.io/v1beta3
+>kind: InitConfiguration
+>localAPIEndpoint:
+>  advertiseAddress: 192.168.10.20
+>  bindPort: 6443
+>```
 
 Initialize Kubernetes on Master Node (first master node)
 ```
@@ -255,8 +281,6 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 Deploy Pod Network to Cluster
 ```
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
-
-https://raw.githubusercontent.com/projectcalico/calico/v3.27.0/manifests/tigera-operator.yaml
 ```
 
 Verify that everything is running
