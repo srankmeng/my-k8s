@@ -139,13 +139,13 @@ kubectl --kubeconfig=kube-config auth can-i get pod
 ### Access k8s cluster by client
 
 ```
-kubectl --kubeconfig kube-config config view --minify --raw
+kubectl --kubeconfig kube-config config view --minify --raw > k-configure
 ```
-Copy kube-config and paste to machine for example `kube-configure`
+Copy kube-config and paste to machine for example `k-configure`
 
 Run get pod on local machine
 ```
-kubectl --kubeconfig kube-configure get pod
+kubectl --kubeconfig k-configure get pod
 ```
 ---
 [Reference](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/)
