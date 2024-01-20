@@ -47,8 +47,11 @@ sudo sysctl --system
 รันเพื่อทดสอบว่าใช้ได้ 
 
 ```
-$ sudo docker version
+sudo docker version
+```
 
+:computer: output
+```
 Client: Docker Engine - Community
  Version:           20.10.14
  API version:       1.41
@@ -116,7 +119,7 @@ sudo apt update
 sudo apt install -y kubeadm
 ```
 
-update kubelet with ip (replace node ip in `<NODE_IP>`)
+:exclamation: :exclamation: update kubelet with ip (replace node ip in `<NODE_IP>`)
 ```
 echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
@@ -132,7 +135,7 @@ kubelet --help
 ```
 
 ## 4. สร้าง Cluster และ etcd node
-Configure the kubelet (all nodes)
+Configure the kubelet (all etcd nodes)
 ```
 cat << EOF > /etc/systemd/system/kubelet.service.d/kubelet.conf
 # Replace "systemd" with the cgroup driver of your container runtime. The default value in the kubelet is "cgroupfs".
@@ -164,7 +167,12 @@ systemctl daemon-reload
 systemctl restart kubelet
 ```
 
-Create configuration files for kubeadm (all nodes)
+<br />
+
+:exclamation: :exclamation: Create configuration files for kubeadm (all etcd nodes)
+
+กำหนดค่าของ HOST0, HOST1, NAME0 และ NAME1 ตาม ip และชื่อของ etcd ของเราไล่ ๆ ไป (ตัวแปรสี่ตัวแรก)
+
 ```
 # Update HOST0, HOST1 and HOST2 with the IPs of your hosts
 export HOST0=10.0.0.6
@@ -216,13 +224,16 @@ Generate the certificate authority(on etcd 1 only)
 ```
 kubeadm init phase certs etcd-ca
 ```
->This creates two files:
+>:computer: This creates two files:
 >```
 >/etc/kubernetes/pki/etcd/
 >├── ca.crt
 >└── ca.key
 >```
 
+<br />
+
+#### 4.1
 Create certificates for each member. (on etcd 1 only)
 ```
 sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
@@ -242,7 +253,9 @@ sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubea
 sudo find /tmp/${HOST1} -name ca.key -type f -delete
 ```
 
-Copy certificates and kubeadm configs. (on etcd 1 only)
+:exclamation: :exclamation: Copy certificates and kubeadm configs. (on etcd 1 only)
+
+โดยกำหนด USER เป็นชื่อ username ของอีกเครื่องที่เราจะ copy cert ไปให้ เช่น `USER=ubuntu`
 ```
 USER=ubuntu
 HOST=${HOST1}
@@ -256,31 +269,16 @@ chown -R root:root pki
 mv pki /etc/kubernetes/
 ```
 
->if use vagrant
->install [plugin](https://github.com/invernizzi/vagrant-scp)
->
->You have to copy key in host into etcd vm. In this case copy etcd2 key from host into etcd1 because etcd1 need to scp to etcd2.
->```
->vagrant scp .vagrant/machines/etcd2/virtualbox/private_key etcd1:etcd2_key
->```
->
->Copy certificates from etcd1 to etcd2
->```
->$ scp -i etcd2_key -r /tmp/${HOST}/* ${USER}@${HOST}:
->
->$ ssh -i etcd2_key ${USER}@${HOST}
->USER@HOST $ sudo -Es
->root@HOST $ chown -R root:root pki
->root@HOST $ mv pki /etc/kubernetes/
->```
->
->>ถ้า Copy ไม่ได้เพราะติด permission
->>```
->>sudo chmod -R 755 /tmp/${HOST}/pki/
->>```
-
 Check file in directory each node
-On `$HOST0`:
+On `$HOST0`: โดยใช้คำสั่ง
+```
+tree /tmp/${HOST0}
+```
+```
+tree /etc/kubernetes/pki
+```
+
+:computer: output
 ```
 /tmp/${HOST0}
 └── kubeadmcfg.yaml
@@ -301,6 +299,14 @@ On `$HOST0`:
 
 On `$HOST1`:
 ```
+tree $HOME
+```
+```
+tree /etc/kubernetes/pki
+```
+
+:computer: output
+```
 $HOME
 └── kubeadmcfg.yaml
 ---
@@ -317,6 +323,7 @@ $HOME
     └── server.key
 ```
 
+#### 4.2
 Create the static pod manifests (depend on each nodes)
 
 On `$HOST0`:
@@ -329,7 +336,7 @@ On `$HOST1`:
 kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
 ```
 
-Install etcdctl for Check the cluster health
+Install etcdctl for Check the cluster health (all etcd nodes)
 ```
 ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
 
@@ -347,7 +354,7 @@ ETCDCTL_API=3 etcdctl \
 --endpoints https://${HOST0}:2379 endpoint health
 ```
 
-output
+:computer: output
 ```
 https://[HOST0 IP]:2379 is healthy: successfully committed proposal: took = 16.283339ms
 https://[HOST1 IP]:2379 is healthy: successfully committed proposal: took = 19.44402ms
