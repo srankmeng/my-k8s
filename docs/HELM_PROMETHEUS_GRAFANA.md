@@ -1,24 +1,24 @@
 ## HELM & PROMETHEUS & GRAFANA
 
-### Helm
-Installing Helm on local machine
+![HELM flow](/images/helm_flow.png)
+---
+![HELM flow apply](/images/helm_flow_apply.png)
+---
+### 1. Helm
+Installing Helm on master node
 
-Linux
+Linux, Ubuntu
 ```
+curl https://baltocdn.com/helm/signing.asc | gpg --dearmor | sudo tee /usr/share/keyrings/helm.gpg > /dev/null
+sudo apt-get install apt-transport-https --yes
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
+sudo apt-get update
 sudo apt-get install helm
 ```
-
-Windows
-```
-choco install Kubernetes-helm
-```
-
-Mac
-```
-brew install helm
-```
-
-### Prometheus Helm Charts
+---
+![monitor diagram](/images/monitor_diagram.png)
+---
+### 2. Prometheus Helm Charts
 Search the packages that you want on [artifacthub](https://artifacthub.io/), then run command depend on your package that you want. 
 
 ```
@@ -31,16 +31,12 @@ Install Prometheus Helm Chart on Kubernetes Cluster
 ```
 helm install prometheus prometheus-community/prometheus
 ```
->when with another kubeconfig
->```
->helm install prometheus prometheus-community/prometheus --kubeconfig kube-config
->```
 
 Check output
 ```
 kubectl get all
 ```
-Output:
+:computer: output:
 ```
 NAME                                                     READY   STATUS    RESTARTS   AGE
 pod/nginx-project-78b94b9cc8-fv6qm                       1/1     Running   0          6m28s
@@ -91,7 +87,7 @@ Check pvc
 ```
 kubectl get pvc
 ```
-output:
+:computer: output:
 ```
 NAME                                STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
 prometheus-server                   Pending                                                     3m13s
@@ -99,7 +95,15 @@ storage-prometheus-alertmanager-0   Pending                                     
 ```
 The status is pending, then create persistent volume and bind it for each other.
 
+
+<br />
+
+### 2.1
 Create `prometheus-server-pv.yaml` persistent volume for `prometheus-server` 
+```
+nano prometheus-server-pv.yaml
+```
+:exclamation: :exclamation: ตามนี้ โดยเปลี่ยน `<WORKER_NODE_NAME>` เป็นชื่อของ worker node เช่น `worker1`
 ```
 apiVersion: v1
 kind: PersistentVolume
@@ -122,31 +126,65 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - <WORKER_NODE_NAME>
+          - <WORKER_NODE_NAME> <========= *** เปลี่ยนชื่อ worker node ***
 ```
 ```
 kubectl apply -f prometheus-server-pv.yaml
 ```
-then go to the worker node and run `mkdir /mnt/prometheus-server-data`
 
-Edit pvc `prometheus-server`
+<br />
+
+>>:busts_in_silhouette: then go to the **worker node** and run 
+>>```
+>>mkdir /mnt/prometheus-server-data
+>>```
+
+<br />
+
+### 2.2 ผูก pvc ของ prometheus-server กับ directory ใน worker node
+Back to master node, edit pvc `prometheus-server`
 ```
 kubectl edit pvc prometheus-server
 ```
+
+:exclamation: :exclamation: เลื่อนมาล่าง ๆ เพิ่มตามนี้ โดยพิมพ์ `i`
 ```
 ...
+
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
       storage: 8Gi
-  storageClassName: local-storage <-- add this
+  storageClassName: local-storage <======= add this
   volumeMode: Filesystem
-  volumeName: prometheus-server-pv <-- add this
+  volumeName: prometheus-server-pv <======= add this
+```
+แก้ไขเสร็จ ก็ `esc` แล้ว `:wq` ออกมา
+
+ตรวจสอบโดย
+```
+kubectl get pvc
 ```
 
-Same step ealier => create `prometheus-alertmanager-pv.yaml` persistent volume for `storage-prometheus-alertmanager-0 `
+:computer: output
+```
+NAME                                STATUS    VOLUME                 CAPACITY   ACCESS MODES   STORAGECLASS    AGE
+prometheus-server                   Bound     prometheus-server-pv   10Gi       RWO            local-storage   75m
+storage-prometheus-alertmanager-0   Pending                                                                    75m
+```
+จะเห็นว่า `prometheus-server` status จะได้เป็น `Bound`
+
+<br />
+
+#### 2.3
+เหมือนเดิมแต่มาทำกับ `rometheus-alertmanager`=> create `prometheus-alertmanager-pv.yaml` persistent volume for `storage-prometheus-alertmanager-0 `
+```
+nano prometheus-alertmanager-pv.yaml
+```
+
+:exclamation: :exclamation: ตามนี้ โดยเปลี่ยน `<WORKER_NODE_NAME>` เป็นชื่อของ worker node เช่น `worker1`
 ```
 apiVersion: v1
 kind: PersistentVolume
@@ -169,48 +207,65 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - <WORKER_NODE_NAME>
+          - <WORKER_NODE_NAME> <========= *** เปลี่ยนชื่อ worker node ***
 ```
 ```
 kubectl apply -f prometheus-alertmanager-pv.yaml
 ```
-then go to the worker node and run `mkdir /mnt/prometheus-alertmanager-data`
 
-Edit pvc `storage-prometheus-alertmanager-0`
+<br />
+
+>>:busts_in_silhouette: then go to the **worker node** and run 
+>>```
+>>mkdir /mnt/prometheus-alertmanager-data
+>>```
+
+<br />
+
+
+#### 2.4 ผูก pvc ของ storage-prometheus-alertmanager กับ directory ใน worker node 
+
+Back to master node, edit pvc `storage-prometheus-alertmanager-0`
 ```
 kubectl edit pvc storage-prometheus-alertmanager-0
 ```
+
+:exclamation: :exclamation: เลื่อนมาล่าง ๆ เพิ่มตามนี้ โดยพิมพ์ `i`
 ```
 ...
+
 spec:
   accessModes:
   - ReadWriteOnce
   resources:
     requests:
-      storage: 8Gi
-  storageClassName: local-storage <-- add this
+      storage: 2Gi
+  storageClassName: local-storage <======= add this
   volumeMode: Filesystem
-  volumeName: prometheus-alertmanager-pv <-- add this
+  volumeName: prometheus-alertmanager-pv <======= add this
 ```
 
-Check for it's all work.
+แก้ไขเสร็จ ก็ `esc` แล้ว `:wq` ออกมา
 
-Checking pvc
+ตรวจสอบโดย
 ```
 kubectl get pvc
 ```
-output
+
+:computer: output
 ```
-NAME                                STATUS   VOLUME                       CAPACITY   ACCESS MODES   STORAGECLASS    AGE
+NAME                                STATUS    VOLUME                 CAPACITY   ACCESS MODES   STORAGECLASS    STORAGECLASS    AGE
 prometheus-server                   Bound    prometheus-server-pv         10Gi       RWO            local-storage   30m
 storage-prometheus-alertmanager-0   Bound    prometheus-alertmanager-pv   10Gi       RWO            local-storage   30m
 ```
+จะเห็นว่า `prometheus-alertmanager-0` status จะได้เป็น `Bound`
+
 
 Checking all
 ```
 kubectl get all
 ```
-output
+:computer: output
 ```
 NAME                                                     READY   STATUS    RESTARTS   AGE
 pod/nginx-project-78b94b9cc8-fv6qm                       1/1     Running   0          36m
@@ -253,6 +308,9 @@ NAME                                       READY   AGE
 statefulset.apps/prometheus-alertmanager   1/1     31m
 ```
 
+<br />
+
+#### 2.5
 Exposing the prometheus-server Kubernetes Service
 ```
 kubectl expose service prometheus-server --type=NodePort --target-port=9090 --name=prometheus-server-ext
@@ -263,7 +321,23 @@ View prometheus running port
 kubectl get svc | grep prometheus 
 ```
 
-### Grafana
+:computer: output
+```
+prometheus-alertmanager               ClusterIP   10.105.61.238    <none>        9093/TCP       99m
+prometheus-alertmanager-headless      ClusterIP   None             <none>        9093/TCP       99m
+prometheus-kube-state-metrics         ClusterIP   10.107.162.182   <none>        8080/TCP       99m
+prometheus-prometheus-node-exporter   ClusterIP   10.98.149.103    <none>        9100/TCP       99m
+prometheus-prometheus-pushgateway     ClusterIP   10.107.74.80     <none>        9091/TCP       99m
+prometheus-server                     ClusterIP   10.97.229.241    <none>        80/TCP         99m
+prometheus-server-ext                 NodePort    10.103.252.109   <none>        80:31229/TCP   6s
+```
+NodePort ของ `prometheus-server-ext` คือ 31229
+
+เข้า browser ด้วย master node ip ตามด้วย NodePort ข้างบน เช่น `139.59.232.158:31229` จะได้หน้าของ Prometheus
+
+
+
+### 3.Grafana
 Grafana Helm chart, run this command
 ```
 helm repo add grafana https://grafana.github.io/helm-charts 
@@ -285,7 +359,7 @@ View grafana running port
 kubectl get svc | grep grafana 
 ```
 
-Go to <NODE_IP>:<GRAFANA_PORT>, Grafana login page should be appear
+เข้า browser ด้วย master node ip ตามด้วย NodePort ข้างบน เช่น `139.59.232.158:31229` จะได้หน้าของ Grafana
 
 Generate password
 ```
@@ -298,10 +372,15 @@ username: admin
 password: <GEN_PASSWORD>
 ```
 
-Then goto grafana home and click data source box and choose `prometheus`, update url and save
+:exclamation: :exclamation:  Then goto grafana home and click data source box and choose `prometheus`, update `http://prometheus_url:port` เช่น `http://139.59.232.158:31229` and save
 
 
-Then goto grafana home and click dashboard box => import dashboard => input dashboard id for example `315` => import 
+Then goto grafana home and click dashboard box
+- import dashboard
+- input dashboard id for example `315`
+- click load button
+- select prometheus data source
+- click import
 
 Grafana dashboard should appear
 
