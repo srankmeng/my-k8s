@@ -1,6 +1,8 @@
 ## User & Role
+![user & role](/images/user_role.png)
+---
 
-### Create User Credentials
+### 1.Create User Credentials
 
 Create a private key for user, for example `user.key`
 ```
@@ -22,7 +24,7 @@ openssl x509 -req -in user.csr -CA /etc/kubernetes/pki/ca.crt -CAkey /etc/kubern
 Now I have `user.crt`, `user.csr` and `user.key`
 
 
-### Config Context
+### 2. Config Context
 Normally context config file is locate on `/etc/kubernetes/admin.conf`
 
 We can create new context config file with `--kubeconfig <FILE>`
@@ -37,20 +39,39 @@ Set context
 kubectl --kubeconfig kube-config config set-context user-context --cluster user-cluster --user user
 ```
 
-Set cluster (replace `YOUR_IP` with master node ip)
+:exclamation: :exclamation: Set cluster (replace `YOUR_IP` with master node ip)
 ```
-kubectl --kubeconfig kube-config config set-cluster user-cluster --server=https://<YOUR_IP>:6443 --insecure-skip-tls-verify
+kubectl --kubeconfig kube-config config set-cluster user-cluster --server=https://<YOUR_IP>:6443 --certificate-authority /etc/kubernetes/pki/ca.crt --embed-certs=true
 ```
-> for more secure
-> ```
-> kubectl --kubeconfig kube-config config set-cluster user-cluster --server=https://<YOUR_IP>:6443 --certificate-authority /etc/kubernetes/pki/ca.crt --embed-certs=true
->```
 
 Or custom `kube-config` file by manual
 
 View config
 ```
 kubectl --kubeconfig kube-config config view
+```
+
+:computer:  output:
+```
+apiVersion: v1
+clusters:
+- cluster:
+    certificate-authority-data: DATA+OMITTED
+    server: https://139.59.232.158:6443
+  name: user-cluster
+contexts:
+- context:
+    cluster: user-cluster
+    user: user
+  name: user-context
+current-context: ""
+kind: Config
+preferences: {}
+users:
+- name: user
+  user:
+    client-certificate-data: DATA+OMITTED
+    client-key-data: DATA+OMITTED
 ```
 >displays only the current context
 >```
@@ -77,8 +98,12 @@ View current context
 kubectl config --kubeconfig kube-config current-context
 ```
 
-### Create role
+### 3. Create role & role binding
 create `role.yaml`
+```
+nano role.yaml
+```
+ตามนี้
 ```
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -93,6 +118,10 @@ rules:
 Custom resources and apiGroups that you want, view all [resource type list](https://kubernetes.io/docs/reference/kubectl/#resource-types), view all [verbs](https://kubernetes.io/docs/reference/access-authn-authz/authorization/#determine-the-request-verb)
 
 create `role-binding.yaml`
+```
+nano role-binding.yaml
+```
+ตามนี้
 ```
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -136,16 +165,17 @@ Check permission
 kubectl --kubeconfig=kube-config auth can-i get pod
 ```
 
-### Access k8s cluster by client
+### 4. Access k8s cluster by client
+Create new config file => `k-config-client` with kube-config
+```
+kubectl --kubeconfig kube-config config view --minify --raw > k-config-client
+```
+Copy `k-config-client` and paste to client machine
 
+:technologist: Run get pod on client machine
 ```
-kubectl --kubeconfig kube-config config view --minify --raw > k-configure
+kubectl --kubeconfig k-config-client get pod
 ```
-Copy kube-config and paste to machine for example `k-configure`
 
-Run get pod on local machine
-```
-kubectl --kubeconfig k-configure get pod
-```
 ---
 [Reference](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/)
