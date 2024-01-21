@@ -164,7 +164,7 @@ kubectl --kubeconfig kube-config get pod
 ```
 kubectl --kubeconfig kube-config edit deployment grafana
 ```
-เลื่อนมา แก้ replicas
+:exclamation: :exclamation: เลื่อนมา แก้ replicas
 ```
 spec:
   progressDeadlineSeconds: 600
@@ -343,7 +343,7 @@ Edit deployments
 ```
 kubectl --kubeconfig kube-config edit deployment grafana
 ```
-เลื่อนมา แก้ replicas
+:exclamation: :exclamation: เลื่อนมา แก้ replicas
 ```
 spec:
   progressDeadlineSeconds: 600

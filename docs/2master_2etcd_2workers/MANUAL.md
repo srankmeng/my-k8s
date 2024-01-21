@@ -1,20 +1,21 @@
 ## Step การติดตั้ง Kubernetes cluster (2 Master nodes, 2 external etcd, 2 Worker nodes)
-* Setup OS
-* Setup external etcd cluster
-* ติดตั้ง Docker และ Kubernetes ในทุก ๆ  node ทั้ง Master และ Worker node
-* สร้าง Master node และ Cluster + copy certs from etcd + join master node
-* สร้าง Worker node และทำการ join เข้า Cluster
+![kubeadm-ha-topology-stacked-etcd](/images/kubeadm-ha-topology-stacked-etcd.svg)
+---
+![kubeadm-ha-topology-external-etcd](/images/kubeadm-ha-topology-external-etcd.svg)
+---
 
-| Node    |      ip       |
-|---------|---------------|
-| master1 | 192.168.10.20 |
-| master2 | 192.168.10.21 |
-| worker1 | 192.168.10.22 |
-| worker2 | 192.168.10.23 |
-| etcd1   | 192.168.10.24 |
-| etcd2   | 192.168.10.25 |
+Step ทั้งหมด
+1. Setup OS: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
+2. ติดตั้ง Docker: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
+3. ติดตั้ง Kubernetes: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
+4. Setup External etcd
+5. สร้าง Master node ตัวแรก
+6. สร้าง Worker node ตัวแรก
+7. สร้าง Master node ตัวสอง join เข้า cluster
+8. สร้าง Worker node ตัวสอง join เข้า cluster
+--- 
 
-## 1. Setup OS
+### 1. Setup OS: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
 
 ปิดการใช้งาน swap 
 ```
@@ -48,61 +49,31 @@ EOF
 sudo sysctl --system
 ```
 
-## 2. Setup external etcd cluster
+### 2. ติดตั้ง Docker: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
 
-- [manual](/docs/external_etcd/MANUAL.md)
-- [vagrant](/docs/external_etcd/VAGRANT.md)
-
-## 3. ติดตั้ง Docker บน Ubuntu (all of master & worker nodes)
-* [Reference](https://docs.docker.com/engine/install/ubuntu/)
-
-รันเพื่อทดสอบว่าใช้ได้ 
-
+Set up Docker's apt repository.
 ```
-$ sudo docker version
+# Add Docker's official GPG key:
+sudo apt-get update
+sudo apt-get install ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
 
-Client: Docker Engine - Community
- Version:           20.10.14
- API version:       1.41
- Go version:        go1.16.15
- Git commit:        a224086
- Built:             Thu Mar 24 01:48:02 2022
- OS/Arch:           linux/amd64
- Context:           default
- Experimental:      true
-
-Server: Docker Engine - Community
- Engine:
-  Version:          20.10.14
-  API version:      1.41 (minimum version 1.12)
-  Go version:       go1.16.15
-  Git commit:       87a90dc
-  Built:            Thu Mar 24 01:45:53 2022
-  OS/Arch:          linux/amd64
-  Experimental:     false
- containerd:
-  Version:          1.5.11
-  GitCommit:        3df54a852345ae127d1fa3092b95168e4a88e2f8
- runc:
-  Version:          1.0.3
-  GitCommit:        v1.0.3-0-gf46b6ba
- docker-init:
-  Version:          0.19.0
-  GitCommit:        de40ad0
+# Add the repository to Apt sources:
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
 ```
 
-ถ้าเจอข้อความประมานนี้
+Install the Docker packages.
 ```
-Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
-```
-
-ให้รัน command เพื่อเปิดใช้งาน docker
-```
-sudo systemctl enable docker
-sudo systemctl start docker
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
 
-## 4. ติดตั้ง Kubernetes บน Ubuntu (all of master & worker nodes)
+### 3. ติดตั้ง Kubernetes: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
 
 Enter the following to add a signing key in you on Ubuntu
 ```
@@ -128,7 +99,7 @@ sudo apt update
 sudo apt install -y kubeadm
 ```
 
-update kubelet with ip (replace node ip in `<NODE_IP>`)
+:exclamation: :exclamation: update kubelet with ip (replace node ip in `<NODE_IP>`)
 ```
 echo "KUBELET_EXTRA_ARGS=--node-ip=<NODE_IP>" | sudo tee /etc/default/kubelet
 sudo systemctl daemon-reload
@@ -136,32 +107,312 @@ sudo systemctl restart kubelet
 sudo systemctl restart containerd
 ```
 
-Check
+<br />
+
+### 4. Setup External etcd
+Configure the kubelet **(ทำที่ etcd ทุก nodes)**
 ```
-kubeadm --help
-kubectl --help
-kubelet --help
+cat << EOF > /etc/systemd/system/kubelet.service.d/kubelet.conf
+# Replace "systemd" with the cgroup driver of your container runtime. The default value in the kubelet is "cgroupfs".
+# Replace the value of "containerRuntimeEndpoint" for a different container runtime if needed.
+#
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    enabled: false
+authorization:
+  mode: AlwaysAllow
+cgroupDriver: systemd
+address: 127.0.0.1
+containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+staticPodPath: /etc/kubernetes/manifests
+EOF
+
+cat << EOF > /etc/systemd/system/kubelet.service.d/20-etcd-service-manager.conf
+[Service]
+ExecStart=
+ExecStart=/usr/bin/kubelet --config=/etc/systemd/system/kubelet.service.d/kubelet.conf
+Restart=always
+EOF
+
+systemctl daemon-reload
+systemctl restart kubelet
 ```
 
-## 5. สร้าง Cluster และ Master node
-Set hostname (master node)
+Install etcdctl for Check the cluster health **(ทำที่ etcd ทุก nodes)**
 ```
-sudo hostnamectl set-hostname master
+ETCD_RELEASE=$(curl -s https://api.github.com/repos/etcd-io/etcd/releases/latest|grep tag_name | cut -d '"' -f 4)
+
+wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
+sudo mv etcd-${ETCD_RELEASE}-linux-amd64/etcd* /usr/local/bin/
 ```
 
-Set hostname (worker node)
+:exclamation: :exclamation: Create configuration files for kubeadm 
+กำหนดค่าของ HOST0, HOST1, NAME0 และ NAME1 ตาม ip และชื่อของ etcd ของเราไล่ ๆ ไป (ตัวแปรสี่ตัวแรก) **(ทำที่ etcd ทุก nodes)**
 ```
-sudo hostnamectl set-hostname w1
+# Update HOST0, HOST1 and HOST2 with the IPs of your hosts
+export HOST0=10.0.0.6 <========= แก้ตรงนี้
+export HOST1=10.0.0.7 <========= แก้ตรงนี้
+
+# Update NAME0, NAME1 and NAME2 with the hostnames of your hosts
+export NAME0="etcd1" <========= แก้ตรงนี้
+export NAME1="etcd2" <========= แก้ตรงนี้
+
+# Create temp directories to store files that will end up on other hosts
+mkdir -p /tmp/${HOST0}/ /tmp/${HOST1}/
+
+HOSTS=(${HOST0} ${HOST1})
+NAMES=(${NAME0} ${NAME1})
+
+for i in "${!HOSTS[@]}"; do
+HOST=${HOSTS[$i]}
+NAME=${NAMES[$i]}
+cat << EOF > /tmp/${HOST}/kubeadmcfg.yaml
+---
+apiVersion: "kubeadm.k8s.io/v1beta3"
+kind: InitConfiguration
+nodeRegistration:
+    name: ${NAME}
+localAPIEndpoint:
+    advertiseAddress: ${HOST}
+---
+apiVersion: "kubeadm.k8s.io/v1beta3"
+kind: ClusterConfiguration
+etcd:
+    local:
+        serverCertSANs:
+        - "${HOST}"
+        peerCertSANs:
+        - "${HOST}"
+        extraArgs:
+            initial-cluster: ${NAMES[0]}=https://${HOSTS[0]}:2380,${NAMES[1]}=https://${HOSTS[1]}:2380
+            initial-cluster-state: new
+            name: ${NAME}
+            listen-peer-urls: https://${HOST}:2380
+            listen-client-urls: https://${HOST}:2379
+            advertise-client-urls: https://${HOST}:2379
+            initial-advertise-peer-urls: https://${HOST}:2380
+EOF
+done
 ```
 
-Copy certs from any etcd to first master node (run on any etcd)
+Generate the certificate authority **(ทำที่ etcd ตัวแรกเท่านั้น)**
 ```
-scp -r /etc/kubernetes/pki/etcd/ca.crt ubuntu@192.168.10.20:
-scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt ubuntu@192.168.10.20:
-scp -r /etc/kubernetes/pki/apiserver-etcd-client.key ubuntu@192.168.10.20:
+kubeadm init phase certs etcd-ca
 ```
 
-Move certs to /etc/kubernetes/pki/ directory (first master node)
+Check ไฟล์ว่ามามั้ย **(ทำที่ etcd ตัวแรกเท่านั้น)**
+```
+tree /etc/kubernetes/pki/etcd/
+```
+
+:computer:  output:
+```
+/etc/kubernetes/pki/etcd/
+├── ca.crt
+└── ca.key
+```
+
+<br />
+
+### 4.1
+Create certificates **(ทำที่ etcd ตัวแรกเท่านั้น)**
+```
+sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-peer --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST1}/kubeadmcfg.yaml
+sudo cp -R /etc/kubernetes/pki /tmp/${HOST1}/
+sudo find /etc/kubernetes/pki -not -name ca.crt -not -name ca.key -type f -delete
+
+sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-peer --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs etcd-healthcheck-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubeadmcfg.yaml
+# No need to move the certs because they are for HOST0
+
+# clean up certs that should not be copied off this host
+sudo find /tmp/${HOST1} -name ca.key -type f -delete
+```
+
+:exclamation: :exclamation: Copy certificates and kubeadm configs **(ทำที่ etcd ตัวแรกเท่านั้น)**
+
+โดยกำหนด USER เป็นชื่อ username ของอีกเครื่องที่เราจะ copy cert ไปให้ เช่น `USER=root`
+```
+USER=ubuntu <========= แก้ตรงนี้
+HOST=${HOST1}
+sudo scp -r /tmp/${HOST}/* ${USER}@${HOST}:
+```
+
+:computer: output:
+```
+kubeadmcfg.yaml                               100%  810   711.5KB/s   00:00    
+apiserver-etcd-client.crt                     100% 1155     1.5MB/s   00:00    
+apiserver-etcd-client.key                     100% 1675     1.9MB/s   00:00    
+healthcheck-client.crt                        100% 1159     1.3MB/s   00:00    
+peer.key                                      100% 1675     1.6MB/s   00:00    
+ca.crt                                        100% 1094     1.1MB/s   00:00    
+peer.crt                                      100% 1192     1.3MB/s   00:00    
+server.key                                    100% 1679     1.7MB/s   00:00    
+healthcheck-client.key                        100% 1679     1.6MB/s   00:00    
+server.crt                                    100% 1192     1.1MB/s   00:00 
+```
+
+ไปที่ etcd อีก node แล้วย้าย certificates ไปที่ /etc/kubernetes/ ของเครื่องนั้น **(ทำที่ etcd ตัวที่สองเท่านั้น)**
+```
+sudo -Es
+chown -R root:root pki
+mv pki /etc/kubernetes/
+```
+
+Check file in directory each node On $HOST0: โดยใช้คำสั่ง **(ทำที่ etcd ตัวแรกเท่านั้น)**
+```
+tree /tmp/${HOST0}
+```
+```
+tree /etc/kubernetes/pki
+```
+
+:computer: output ตามลำดับ:
+```
+/tmp/${HOST0}
+└── kubeadmcfg.yaml
+
+---
+
+/etc/kubernetes/pki
+├── apiserver-etcd-client.crt
+├── apiserver-etcd-client.key
+└── etcd
+    ├── ca.crt
+    ├── ca.key
+    ├── healthcheck-client.crt
+    ├── healthcheck-client.key
+    ├── peer.crt
+    ├── peer.key
+    ├── server.crt
+    └── server.key
+```
+
+Check file in directory **(ทำที่ etcd ตัวที่สองเท่านั้น)**
+```
+tree $HOME
+```
+```
+tree /etc/kubernetes/pki
+```
+
+:computer: output ตามลำดับ:
+```
+$HOME
+└── kubeadmcfg.yaml
+
+---
+
+/etc/kubernetes/pki
+├── apiserver-etcd-client.crt
+├── apiserver-etcd-client.key
+└── etcd
+    ├── ca.crt
+    ├── healthcheck-client.crt
+    ├── healthcheck-client.key
+    ├── peer.crt
+    ├── peer.key
+    ├── server.crt
+    └── server.key
+```
+
+<br />
+
+
+### 4.2 Create the static pod manifests
+
+**(ทำที่ etcd ตัวแรกเท่านั้น)**
+```
+kubeadm init phase etcd local --config=/tmp/${HOST0}/kubeadmcfg.yaml
+```
+**(ทำที่ etcd ตัวที่สองเท่านั้น)**
+```
+kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
+```
+
+Check the etcd health **(ทำที่ etcd ตัวแรกเท่านั้น)**
+```
+ETCDCTL_API=3 etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://${HOST0}:2379 endpoint health
+```
+
+:computer:  output:
+```
+https://[HOST0 IP]:2379 is healthy: successfully committed proposal: took = 16.283339ms
+```
+
+View member list **(ทำที่ etcd ไหนก็ได้)**
+
+:exclamation: :exclamation: เปลี่ยน `<ETCD_IP>` เป็น ip ของ etcd ไหนก็ได้
+```
+ETCDCTL_API=3 etcdctl member list \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://<ETCD_IP>:2379 --write-out=table
+```
+:computer: output:
+```
++------------------+---------+--------+------------------------------+------------------------------+------------+
+|        ID        | STATUS  |  NAME  |          PEER ADDRS          |         CLIENT ADDRS         | IS LEARNER |
++------------------+---------+--------+------------------------------+------------------------------+------------+
+| 2b654c5f343dd2c6 | started | etcd02 | https://128.199.182.170:2380 | https://128.199.182.170:2379 |      false |
+| b54829f274fb16e8 | started | etcd01 | https://128.199.181.251:2380 | https://128.199.181.251:2379 |      false |
++------------------+---------+--------+------------------------------+------------------------------+------------+
+```
+
+Write **(ทำที่ etcd ไหนก็ได้)**
+
+:exclamation: :exclamation: เปลี่ยน `<ETCD_IP>` เป็น ip ของ etcd ไหนก็ได้
+```
+etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://<ETCD_IP>:2379 put name meng
+```
+
+Read **(ทำที่ etcd ไหนก็ได้)**
+
+:exclamation: :exclamation: เปลี่ยน `<ETCD_IP>` เป็น ip ของ etcd ไหนก็ได้
+```
+etcdctl \
+--cert /etc/kubernetes/pki/etcd/peer.crt \
+--key /etc/kubernetes/pki/etcd/peer.key \
+--cacert /etc/kubernetes/pki/etcd/ca.crt \
+--endpoints https://<ETCD_IP>:2379 get name
+```
+
+<br />
+
+### 5. สร้าง Master node ตัวแรก
+
+โดยจะเอา cert จาก etcd มาไว้ที่ master node แล้ว initial cluster
+
+
+:exclamation: :exclamation: Copy certs from any etcd to first master node **(ทำที่ etcd ไหนก็ได้)**
+เปลี่ยน `<USERNAME_MASTER_NODE_IP>` เป็น username ของ master node ตัวแรก
+เปลี่ยน `<FIRST_MASTER_NODE_IP>` เป็น ip ของ master node ตัวแรก
+```
+scp -r /etc/kubernetes/pki/etcd/ca.crt <USERNAME_MASTER_NODE_IP>@<FIRST_MASTER_NODE_IP>:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.crt <USERNAME_MASTER_NODE_IP>@<FIRST_MASTER_NODE_IP>:
+scp -r /etc/kubernetes/pki/apiserver-etcd-client.key <USERNAME_MASTER_NODE_IP>@<FIRST_MASTER_NODE_IP>:
+```
+
+Move certs to /etc/kubernetes/pki/ directory **(ทำที่ master ตัวแรก)**
 ```
 sudo mkdir -p /etc/kubernetes/pki/ /etc/kubernetes/pki/etcd
 sudo mv ca.crt /etc/kubernetes/pki/etcd
@@ -169,28 +420,29 @@ sudo mv apiserver-etcd-client.crt /etc/kubernetes/pki/
 sudo mv apiserver-etcd-client.key /etc/kubernetes/pki/
 ```
 
-Create kubeadm-config file (first master node)
+Create kubeadm-config file **(ทำที่ master ตัวแรก)**
 ```
 sudo nano kubeadm-config.yaml
 ```
 
+:exclamation: :exclamation: เปลี่ยน endpoint เป็นของเรา 3 ที่ด้านล่าง
 ```
 apiVersion: kubeadm.k8s.io/v1beta3
 kind: ClusterConfiguration
 kubernetesVersion: stable
-controlPlaneEndpoint: "192.168.10.20:6443"
+controlPlaneEndpoint: "192.168.10.20:6443" <=========== เปลี่ยนเป็น master1 ip
 etcd:
   external:
     endpoints:
-      - https://192.168.10.24:2379
-      - https://192.168.10.25:2379
+      - https://192.168.10.24:2379  <=========== เปลี่ยนเป็น etcd01 ip
+      - https://192.168.10.25:2379 <=========== เปลี่ยนเป็น etcd02 ip
     caFile: /etc/kubernetes/pki/etcd/ca.crt
     certFile: /etc/kubernetes/pki/apiserver-etcd-client.crt
     keyFile: /etc/kubernetes/pki/apiserver-etcd-client.key
 networking:
   podSubnet: "10.244.0.0/16"
 ```
-
+<!-- 
 >or maybe for some network
 >```
 >apiVersion: kubeadm.k8s.io/v1beta3
@@ -213,30 +465,14 @@ networking:
 >localAPIEndpoint:
 >  advertiseAddress: 192.168.10.20
 >  bindPort: 6443
->```
+>``` -->
 
-Initialize Kubernetes on Master Node (first master node)
+Initialize Kubernetes on Master Node **(ทำที่ master ตัวแรก)**
 ```
 sudo kubeadm init --config kubeadm-config.yaml --upload-certs
 ```
 
->ถ้าเจอ error ประมานนี้
->```
->[init] Using Kubernetes version: v1.24.1
->[preflight] Running pre-flight checks
->error execution phase preflight: [preflight] Some fatal errors occurred:
->        [ERROR CRI]: container runtime is not running: output: time="2023-01-19T15:05:35Z" level=fatal msg="validate service connection: CRI v1 runtime API is not implemented for endpoint \"unix:///var/run/containerd/containerd.sock\": rpc error: code = Unimplemented desc = unknown service runtime.v1.RuntimeService"
->, error: exit status 1
->[preflight] If you know what you are doing, you can make a check non-fatal >with `--ignore-preflight-errors=...`
->```
->
->ใช้ command
->```
->$ sudo rm /etc/containerd/config.toml
->$ sudo systemctl restart containerd
->```
-
-ถ้าสำเร็จจะได้ประมานนี้
+:computer: output:
 ```
 Your Kubernetes control-plane has initialized successfully!
 
@@ -270,15 +506,28 @@ kubeadm join 192.168.10.20:6443 --token 3gn14b.kkf17ebqbs3dnfyh \
         --discovery-token-ca-cert-hash sha256:393523381b84172d26207d48c768ef53689b47878041e42854ac76dac7b527ce 
 ```
 
+> [!IMPORTANT]  
+> จะเห็นว่าจะได้ command join ของทั้ง master และ worker ให้เก็บไว้ทั้งสองคำสั่ง
+> ```
+>   kubeadm join 192.168.10.20:6443 --token 3gn14b.kkf17ebqbs3dnfyh \
+>         --discovery-token-ca-cert-hash sha256:393523381b84172d26207d48c768ef53689b47878041e42854ac76dac7b527ce \
+>         --control-plane --certificate-key 7b6b357210d9ff61eea2cdeded5ee85a710b1881631ee1b5d2c502cdaa645028
+> ```
+> และ
+> ```
+> kubeadm join 192.168.10.20:6443 --token 3gn14b.kkf17ebqbs3dnfyh \
+>         --discovery-token-ca-cert-hash sha256:393523381b84172d26207d48c768ef53689b47878041e42854ac76dac7b527ce 
+> ```
 
-Start cluster
+
+Start cluster **(ทำที่ master ตัวแรก)**
 ```
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 ```
 
-Deploy Pod Network to Cluster
+Deploy Pod Network to Cluster **(ทำที่ master ตัวแรก)**
 ```
 kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
 ```
@@ -289,31 +538,64 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-Join master node into master node (master node only)
-ใช้ command ที่ได้หลังจากสร้าง master node
-```
-kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
-  --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98 \
-  --control-plane --certificate-key 7cac221ab2643bbd61b68a90843bc5222eb07941ef832f0123274e323a626716
-```
+<br />
 
-Join worker node into master node (worker node only)
+### 6. สร้าง Worker node ตัวแรก
+Join worker node into cluster **(ทำที่ worker ตัวแรก)**
 
-ใช้ command ที่ได้หลังจากสร้าง master node
+:exclamation: :exclamation: ใช้ command ที่ได้หลังจากสร้าง master node 
 ```
 kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
   --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98
 ```
 
-> ถ้าไม่ได้เก็บไว้ ให้ generate token
->```
->kubeadm token create --print-join-command
->```
-
-ดู nodes อีกรอบที่ master mode
+ดูผลที่ master node
 ```
 kubectl get nodes
 ```
+
+<br />
+
+
+### 7. สร้าง Master node ตัวสอง join เข้า cluster
+Join master node into cluster **(ทำที่ master ตัวสอง)**
+
+:exclamation: :exclamation: ใช้ command ที่ได้หลังจากสร้าง master node แรก ที่เป็นของ master node
+```
+kubeadm join 128.199.113.251:6443 --token dlcqrx.06jqcrw78s54f6s4 \
+	--discovery-token-ca-cert-hash sha256:a316f0bcc7ae6a8e992de7246a1fe3d3539e4999c6f2dec9063df951bbedf0de \
+	--control-plane --certificate-key c16c6687a174ca6ccb2fe5c5d4f6f6e9b62cb43e1a33fd9da005bf35e985a4ed
+```
+
+จากนั้น **(ทำที่ master ตัวสอง)**
+```
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+```
+
+ดูผลที่ master node
+```
+kubectl get nodes
+```
+
+<br />
+
+
+### 8. สร้าง Worker node ตัวสอง join เข้า cluster
+Join worker node into cluster **(ทำที่ worker ตัวสอง)**
+
+:exclamation: :exclamation: ใช้ command ที่ได้หลังจากสร้าง master node 
+```
+kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
+  --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98
+```
+
+ดูผลที่ master node
+```
+kubectl get nodes
+```
+
 
 จะได้
 ```
@@ -324,6 +606,7 @@ worker1   Ready    <none>          4h19m   v1.28.2
 worker2   Ready    <none>          4h17m   v1.28.2
 ```
 เป็นอันเรียบร้อยสำหรับการสร้าง cluster
+
 
 ## ลองรัน Nginx
 สร้างไฟล์ nginx.yaml
