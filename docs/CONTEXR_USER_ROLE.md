@@ -377,7 +377,15 @@ kubectl --kubeconfig kube-config config view --minify --raw > k-config-client
 ```
 Copy `k-config-client` and paste to client machine
 
+
+<br />
+
+
 :technologist: Go to **client machine** then run get pod (not on master node)
+
+> [!IMPORTANT]  
+> ต้อง install kubectl ที่เครื่อง client ก่อน [link](https://kubernetes.io/docs/tasks/tools/)
+
 ```
 kubectl --kubeconfig k-config-client get pod
 ```
