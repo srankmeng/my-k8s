@@ -13,6 +13,11 @@ Step ทั้งหมด
 6. สร้าง Worker node ตัวแรก
 7. สร้าง Master node ตัวสอง join เข้า cluster
 8. สร้าง Worker node ตัวสอง join เข้า cluster
+
+ภาพสุดท้ายที่ต้องการ
+
+![HA_FINAL](/images/HA/HA_FINAL.png)
+
 --- 
 
 ### 1. Setup OS: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
@@ -49,6 +54,8 @@ EOF
 sudo sysctl --system
 ```
 
+---
+
 ### 2. ติดตั้ง Docker: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
 
 Set up Docker's apt repository.
@@ -72,6 +79,8 @@ Install the Docker packages.
 ```
 sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
+
+---
 
 ### 3. ติดตั้ง Kubernetes: ทำทุก nodes (2 Master nodes, 2 external etcd, 2 Worker nodes)
 
@@ -106,8 +115,11 @@ sudo systemctl daemon-reload
 sudo systemctl restart kubelet
 sudo systemctl restart containerd
 ```
+ตอนนี้จะได้ภาพตามนี้
 
-<br />
+![HA_1](/images/HA/HA_1.png)
+
+---
 
 ### 4. Setup External etcd
 Configure the kubelet **(ทำที่ etcd ทุก nodes)**
@@ -150,6 +162,12 @@ wget https://github.com/etcd-io/etcd/releases/download/${ETCD_RELEASE}/etcd-${ET
 tar zxvf etcd-${ETCD_RELEASE}-linux-amd64.tar.gz
 sudo mv etcd-${ETCD_RELEASE}-linux-amd64/etcd* /usr/local/bin/
 ```
+
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_2](/images/HA/HA_2.png)
+
+---
 
 :exclamation: :exclamation: Create configuration files for kubeadm 
 กำหนดค่าของ HOST0, HOST1, NAME0 และ NAME1 ตาม ip และชื่อของ etcd ของเราไล่ ๆ ไป (ตัวแปรสี่ตัวแรก) **(ทำที่ etcd ทุก nodes)**
@@ -200,6 +218,14 @@ EOF
 done
 ```
 
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_3](/images/HA/HA_3.png)
+
+---
+
+### 4.1 Create the certificate
+
 Generate the certificate authority **(ทำที่ etcd ตัวแรกเท่านั้น)**
 ```
 kubeadm init phase certs etcd-ca
@@ -217,9 +243,6 @@ tree /etc/kubernetes/pki/etcd/
 └── ca.key
 ```
 
-<br />
-
-### 4.1
 Create certificates **(ทำที่ etcd ตัวแรกเท่านั้น)**
 ```
 sudo kubeadm init phase certs etcd-server --config=/tmp/${HOST1}/kubeadmcfg.yaml
@@ -238,6 +261,12 @@ sudo kubeadm init phase certs apiserver-etcd-client --config=/tmp/${HOST0}/kubea
 # clean up certs that should not be copied off this host
 sudo find /tmp/${HOST1} -name ca.key -type f -delete
 ```
+
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_4](/images/HA/HA_4.png)
+
+---
 
 :exclamation: :exclamation: Copy certificates and kubeadm configs **(ทำที่ etcd ตัวแรกเท่านั้น)**
 
@@ -262,7 +291,7 @@ healthcheck-client.key                        100% 1679     1.6MB/s   00:00
 server.crt                                    100% 1192     1.1MB/s   00:00 
 ```
 
-ไปที่ etcd อีก node แล้วย้าย certificates ไปที่ /etc/kubernetes/ ของเครื่องนั้น **(ทำที่ etcd ตัวที่สองเท่านั้น)**
+ไปที่ etcd อีก node แล้วย้าย certificates ไปที่ /etc/kubernetes/ ของเครื่องนั้น **(ทำที่ etcd ตัวที่สองเท่านั้น + etcd ตัวอื่น ๆ ถ้ามี)**
 ```
 sudo -Es
 chown -R root:root pki
@@ -298,7 +327,7 @@ tree /etc/kubernetes/pki
     └── server.key
 ```
 
-Check file in directory **(ทำที่ etcd ตัวที่สองเท่านั้น)**
+Check file in directory **(ทำที่ etcd ตัวที่สองเท่านั้น + etcd ตัวอื่น ๆ ถ้ามี)**
 ```
 tree $HOME
 ```
@@ -326,8 +355,11 @@ $HOME
     └── server.key
 ```
 
-<br />
+ตอนนี้จะได้ภาพตามนี้
 
+![HA_5](/images/HA/HA_5.png)
+
+---
 
 ### 4.2 Create the static pod manifests
 
@@ -335,7 +367,7 @@ $HOME
 ```
 kubeadm init phase etcd local --config=/tmp/${HOST0}/kubeadmcfg.yaml
 ```
-**(ทำที่ etcd ตัวที่สองเท่านั้น)**
+**(ทำที่ etcd ตัวที่สองเท่านั้น + etcd ตัวอื่น ๆ ถ้ามี)**
 ```
 kubeadm init phase etcd local --config=$HOME/kubeadmcfg.yaml
 ```
@@ -396,7 +428,11 @@ etcdctl \
 --endpoints https://<ETCD_IP>:2379 get name
 ```
 
-<br />
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_6](/images/HA/HA_6.png)
+
+---
 
 ### 5. สร้าง Master node ตัวแรก
 
@@ -419,6 +455,13 @@ sudo mv ca.crt /etc/kubernetes/pki/etcd
 sudo mv apiserver-etcd-client.crt /etc/kubernetes/pki/
 sudo mv apiserver-etcd-client.key /etc/kubernetes/pki/
 ```
+
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_7](/images/HA/HA_7.png)
+
+---
+
 
 Create kubeadm-config file **(ทำที่ master ตัวแรก)**
 ```
@@ -538,7 +581,11 @@ kubectl get nodes
 kubectl get pods -A
 ```
 
-<br />
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_8](/images/HA/HA_8.png)
+
+---
 
 ### 6. สร้าง Worker node ตัวแรก
 Join worker node into cluster **(ทำที่ worker ตัวแรก)**
@@ -554,7 +601,11 @@ kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
 kubectl get nodes
 ```
 
-<br />
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_9](/images/HA/HA_9.png)
+
+---
 
 
 ### 7. สร้าง Master node ตัวสอง join เข้า cluster
@@ -579,7 +630,11 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 kubectl get nodes
 ```
 
-<br />
+ตอนนี้จะได้ภาพตามนี้
+
+![HA_10](/images/HA/HA_10.png)
+
+---
 
 
 ### 8. สร้าง Worker node ตัวสอง join เข้า cluster
@@ -606,6 +661,12 @@ worker1   Ready    <none>          4h19m   v1.28.2
 worker2   Ready    <none>          4h17m   v1.28.2
 ```
 เป็นอันเรียบร้อยสำหรับการสร้าง cluster
+
+ตอนนี้จะได้ภาพสุดท้ายตามนี้
+
+![HA_FINAL](/images/HA/HA_FINAL.png)
+
+---
 
 
 ## ลองรัน Nginx
