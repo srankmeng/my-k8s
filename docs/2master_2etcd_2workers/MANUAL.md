@@ -646,6 +646,8 @@ kubeadm join 192.168.10.20:6443 --token udw6s6.ag5stldgmyxrxqlo \
   --discovery-token-ca-cert-hash sha256:07cb0fea26d34e23df4af8d9d654d06775ab1fbb3a6c3bdd04816b5ccc877c98
 ```
 
+![HA_11](/images/HA/HA_11.png)
+
 ดูผลที่ master node
 ```
 kubectl get nodes
@@ -668,6 +670,10 @@ worker2   Ready    <none>          4h17m   v1.28.2
 
 ---
 
+#### Reference
+[Fault Tolerance Table](https://etcd.io/docs/v2.3/admin_guide/#fault-tolerance-table)
+
+---
 
 ## ลองรัน Nginx
 สร้างไฟล์ nginx.yaml
